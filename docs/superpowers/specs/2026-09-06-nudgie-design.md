@@ -1,7 +1,7 @@
 # Nudgie — design spec
 
 Date: 2026-09-06
-Status: draft for review
+Status: approved 2026-09-06 (no Apple Developer account; build and test first, publish later)
 Owner: Gourav Kakkar (gouravkakkar)
 
 ## 1. What we are building
@@ -18,7 +18,7 @@ Everything runs on your machine. No account, no network, no analytics.
 | Topic | Decision |
 |---|---|
 | Reminders in v1 | Eyes (20-20-20), stand and walk, drink water, posture check, stretch |
-| Meeting rule | Smart detection: camera or mic in use, browser or meeting app in front, or Focus on. Each rule can be turned off. |
+| Meeting rule | Smart detection: camera or mic in use, or browser or meeting app in front. Each rule can be turned off. (Focus detection dropped from v1, see section 8.) |
 | How a reminder looks | A floating card in a screen corner with a countdown and Done / Snooze buttons. Optional sound. |
 | Timing | Active time only. Pauses when locked or asleep. Away 5+ minutes counts as a break and resets timers. Optional work-hours window. |
 | Look and feel | Quirky and cool: a mascot, sticker-style cards, cheeky copy, confetti. |
@@ -52,8 +52,8 @@ Stretchly and BreakTimer (free, Electron-based), Intermission and Rest (paid).
 > nudges you to rest your eyes with the 20-20-20 rule, sit up straight, drink
 > water, stand up and stretch. It only counts time you are actually at the Mac,
 > so it never nags you after lunch, and it automatically goes quiet when your
-> camera or mic is on, when a browser or meeting app is in front, or when a
-> Focus mode is active. Native Swift, no Electron, nothing leaves your machine.
+> camera or mic is on or when a browser or meeting app is in front. Native
+> Swift, no Electron, nothing leaves your machine.
 > Nudgie is a free alternative to paid Mac break apps such as LookAway (from
 > $19) and Time Out's paid upgrades, and a lighter native alternative to
 > Stretchly.
@@ -122,13 +122,13 @@ Swift language mode 6, with the app target using default MainActor isolation.
 | `ReminderKind` + `ReminderCatalog` | Core | The five reminders, their defaults, colours, mascot pose and copy lines | nothing |
 | `NudgieSettings` | Core | Codable settings struct, defaults, migration | nothing |
 | `ActivityState` | Core | Value type: idle seconds, locked, asleep, now | nothing |
-| `QuietState` | Core | Value type: camera/mic busy, frontmost bundle id, focus on, manual pause | nothing |
+| `QuietState` | Core | Value type: camera busy, mic busy, frontmost bundle id | nothing |
 | `QuietPolicy` | Core | Turns `QuietState` + settings into "quiet: yes/no, reason" | settings |
 | `TimerEngine` | Core | Advances per-reminder accumulators from `ActivityState`, produces pending reminders, applies snooze/done/reset/work-hours | settings, `QuietPolicy` |
 | `CardPlanner` | Core | Groups pending reminders into one card, enforces the 30 s breathing gap and the 30 s post-meeting settle | `TimerEngine` |
 | `DailyStats` | Core | Counts taken / snoozed per day | nothing |
 | `ActivityProbe` | App | Real values from `CGEventSource` idle time, screen lock notifications, sleep/wake | AppKit, CoreGraphics |
-| `QuietProbe` | App | Camera via CoreMediaIO "running somewhere", mic via CoreAudio "running somewhere", frontmost app via `NSWorkspace`, Focus via `~/Library/DoNotDisturb/DB/Assertions.json` | CoreMediaIO, CoreAudio, AppKit |
+| `QuietProbe` | App | Camera via CoreMediaIO "running somewhere", mic via CoreAudio "running somewhere", frontmost app via `NSWorkspace` | CoreMediaIO, CoreAudio, AppKit |
 | `Coordinator` | App | The 1 s heartbeat: read probes, feed the engine, ask the planner, show cards, persist | everything above |
 | `CardPanel` | App | Non-activating floating `NSPanel` hosting the SwiftUI card | AppKit, SwiftUI |
 | `MenuBar` | App | `MenuBarExtra` with status, next-up list, pause, settings, quit | SwiftUI |
@@ -173,13 +173,18 @@ default 5 min.
 
 ## 8. Quiet mode (meeting detection)
 
-`QuietPolicy` says "quiet" when any enabled rule fires:
+`QuietPolicy` says "quiet" when any enabled rule fires.
+
+**Focus / Do Not Disturb is not a v1 rule.** Verified 2026-09-06: macOS blocks
+reading `~/Library/DoNotDisturb/DB/` for any app without Full Disk Access
+("Operation not permitted"). Asking for Full Disk Access is far too heavy for a
+break reminder. The Apple-sanctioned route is a Focus Filter app extension,
+listed under future ideas.
 
 | Rule | Default | How the app knows | Permission needed |
 |---|---|---|---|
 | Camera or mic in use | on | CoreMediaIO device property "is running somewhere"; CoreAudio input device property "is running somewhere" | none (we never record, we only read a flag) |
 | Browser or meeting app in front | on | `NSWorkspace.frontmostApplication` bundle id matched by prefix against the quiet list | none |
-| Focus / Do Not Disturb on | on | Read `~/Library/DoNotDisturb/DB/Assertions.json`; non-empty assertion records means a Focus is on. Best effort: if the file is missing or unreadable, treat as not in Focus. | none (app is not sandboxed) |
 | Manual pause | — | Menu bar | — |
 
 Default quiet list (bundle id prefixes, editable in Settings):
@@ -199,7 +204,7 @@ screen), pending reminders wait, nothing is shown, and the menu bar icon shows
 a "shh" face. When quiet ends, `CardPlanner` waits 30 seconds before showing
 anything, so you are not hit the moment you hang up.
 
-Probes are sampled every 2 seconds for camera, mic and Focus, and immediately
+Probes are sampled every 2 seconds for camera and mic, and immediately
 on app-switch notifications for the frontmost app.
 
 ## 9. The card: presentation and visual design
@@ -268,7 +273,7 @@ twice in a row. Starter set:
 corner:
 
 1. **Reminders:** per reminder, an on/off toggle, interval, break length.
-2. **Meetings and hours:** the three quiet rules, the editable quiet-app list
+2. **Meetings and hours:** the two quiet rules, the editable quiet-app list
    (add by picking a running app, remove with ✕), work hours toggle and range.
 3. **General:** sound on/off and pick, snooze length, launch at login
    (`SMAppService`), "reset to defaults".
@@ -283,11 +288,9 @@ corner:
 
 ## 12. Error handling
 
-- Every probe returns a safe default on failure (camera/mic: not busy; Focus:
-  off; frontmost: nil) and logs once through `os.Logger`. The app never
+- Every probe returns a safe default on failure (camera/mic: not busy;
+  frontmost: nil) and logs once through `os.Logger`. The app never
   crashes because the OS refused a query.
-- If the Focus file does not exist on this macOS version, the Focus rule shows
-  "Not available on this macOS" in Settings and does nothing.
 - If the settings JSON fails to decode, defaults are used and the broken blob
   is kept under a backup key.
 - If the screen with the menu bar disappears (display unplugged), the card
@@ -313,8 +316,8 @@ corner:
 consumer must be proven against the real producer, not a mock):
 
 - `Nudgie --probe` prints live values every second: idle seconds, locked,
-  frontmost bundle id, camera busy, mic busy, focus on. Used to confirm
-  detection on this Mac with Zoom, FaceTime, Chrome and a Focus toggled on.
+  frontmost bundle id, camera busy, mic busy. Used to confirm detection on
+  this Mac with FaceTime, Chrome and a browser tab using the camera.
 - `Nudgie --demo <reminder>` shows a card immediately for visual checks.
 - A manual QA checklist in `docs/qa-checklist.md` covering: card never steals
   focus, card shows over a full-screen app, quiet during a FaceTime call,
@@ -341,7 +344,8 @@ consumer must be proven against the real producer, not a mock):
 
 ## 15. Not in v1 (future ideas)
 
-Deep breathing and long-break reminders, end-of-day stop nudge, screen-sharing
+Focus / Do Not Disturb awareness via a Focus Filter extension, deep breathing
+and long-break reminders, end-of-day stop nudge, screen-sharing
 and full-screen-presentation detection, full-screen break mode, iPhone sync,
 Shortcuts and AppleScript hooks, weekly stats, localisation, Homebrew tap,
 Sparkle auto-update, App Store build (would need sandboxing and would lose the
