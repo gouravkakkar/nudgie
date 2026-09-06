@@ -4,6 +4,8 @@ Nudgie is a free break reminder app for macOS that lives in your menu bar and nu
 
 Nudgie is a free alternative to paid Mac break apps such as LookAway (from $19) and Time Out's paid upgrades, and a lighter native alternative to Stretchly.
 
+**Website:** https://gouravkakkar.github.io/nudgie/ · **Download:** [Nudgie.app.zip](https://github.com/gouravkakkar/nudgie/releases/latest/download/Nudgie.app.zip) (macOS 14+, universal)
+
 > Free and source-available. Use it at home or at work. Only the author may sell it. See [Licence](#licence).
 
 ## What it nudges you about
