@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 
 APP=Nudgie
 OUT="build/$APP.app"
-[ -f LICENSE ] || { echo "LICENSE is missing; run Task 13 step 0 first" >&2; exit 1; }
+[ -f LICENSE ] || { echo "LICENSE is missing; see README → Licence" >&2; exit 1; }
 
 # Two --arch flags make SwiftPM emit a fat binary under .build/apple/Products/Release (verified on this Mac).
 swift build -c release --arch arm64 --arch x86_64 2>&1 | tail -1

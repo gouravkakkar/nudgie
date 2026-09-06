@@ -105,12 +105,20 @@ final class Coordinator {
         // `--demo` means "show me this card now": use the same forced path as "Take a break
         // now" so a Mac idle for 300+ seconds at launch still shows it, instead of relying on
         // the normal scheduled path, which the very first tick above may have already gated on
-        // away/reset. If the kind is disabled in settings, triggerNow is a no-op: no card shows.
-        if let demo {
+        // away/reset. A disabled kind must show nothing: forcePlan does not check isEnabled
+        // itself, so guard on it here before forcing the card.
+        if let demo, settings.reminder(demo).isEnabled {
             engine.triggerNow(demo)
             if let plan = planner.forcePlan(kinds: [demo], settings: settings) {
                 show(plan, forced: true)
             }
+        }
+    }
+
+    @MainActor deinit {
+        timer?.invalidate()
+        if let activityToken {
+            ProcessInfo.processInfo.endActivity(activityToken)
         }
     }
 

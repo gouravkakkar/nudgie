@@ -34,10 +34,10 @@ Works on macOS 14 Sonoma or newer, Apple Silicon and Intel (the download is a un
 Nudgie is not yet notarised (that needs a paid Apple Developer account), so macOS blocks a downloaded copy the first time. This is a one-time step:
 
 1. Download `Nudgie.app.zip` from the latest [release](../../releases), unzip it, and move `Nudgie.app` to `/Applications`.
-2. Double-click it. macOS says it cannot verify the app. Click **Done** (not Move to Trash).
-3. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to the Nudgie message, then **Open**.
+2. **macOS 15 Sequoia or newer:** double-click it, click **Done** on the "cannot verify" dialog, then open **System Settings → Privacy & Security**, scroll down, click **Open Anyway** next to the Nudgie message, then **Open**.
+3. **macOS 14 Sonoma:** right-click `Nudgie.app` → **Open** → **Open**.
 
-On macOS 13 and older, right-click → **Open** → **Open** does the same job. If you prefer the terminal:
+If you prefer the terminal:
 
 ```bash
 xattr -d com.apple.quarantine /Applications/Nudgie.app

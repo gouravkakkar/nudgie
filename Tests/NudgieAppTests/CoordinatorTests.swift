@@ -17,6 +17,11 @@ import NudgieCore
     var now = Date(timeIntervalSince1970: 1_800_000_000)
 }
 
+/// Records the sound names the coordinator asks to play, instead of playing real system sounds.
+@MainActor final class SoundLog {
+    var names: [String] = []
+}
+
 @MainActor @Suite struct CoordinatorTests {
     /// Nested types do not inherit the suite's @MainActor, so mark it explicitly.
     @MainActor struct Rig {
@@ -24,6 +29,8 @@ import NudgieCore
         let activity: FakeActivity
         let quiet: FakeQuiet
         let clock: FakeClock
+        let testDefaults: TestDefaults
+        let soundLog: SoundLog
 
         /// Drive the heartbeat one second at a time, like the real Timer would.
         func advance(_ seconds: Int) {
@@ -32,20 +39,30 @@ import NudgieCore
                 coordinator.tick()
             }
         }
+
+        /// Deletes the throwaway UserDefaults suite backing this rig. Call via `defer` right
+        /// after `makeRig()`.
+        func cleanUp() {
+            testDefaults.cleanUp()
+        }
     }
 
     func makeRig() -> Rig {
-        let defaults = UserDefaults(suiteName: "nudgie.tests.\(UUID().uuidString)")!
+        let testDefaults = TestDefaults()
         let activity = FakeActivity()
         let quiet = FakeQuiet()
         let clock = FakeClock()
-        let coordinator = Coordinator(store: Store(defaults: defaults), activity: activity, quiet: quiet,
-                                      clock: { clock.now }, playSound: { _ in })
-        return Rig(coordinator: coordinator, activity: activity, quiet: quiet, clock: clock)
+        let soundLog = SoundLog()
+        let coordinator = Coordinator(store: Store(defaults: testDefaults.defaults), activity: activity, quiet: quiet,
+                                      clock: { clock.now }, playSound: { soundLog.names.append($0) })
+        return Rig(coordinator: coordinator, activity: activity, quiet: quiet, clock: clock,
+                   testDefaults: testDefaults, soundLog: soundLog)
     }
 
     @Test func lockHidesTheCardAndNothingNewShowsWhileLocked() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
+        defer { rig.cleanUp() }
         rig.advance(20 * 60)
         #expect(rig.coordinator.card != nil)
         rig.activity.state = ActivityState(idleSeconds: 1, isLocked: true)
@@ -60,6 +77,7 @@ import NudgieCore
 
     @Test func disablingAReminderRemovesItFromTheCard() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
         rig.advance(30 * 60)                          // eyes card came and finished at 20:20; posture card is up now
         #expect(rig.coordinator.card?.plan.kinds == [.posture])
         var s = rig.coordinator.settings
@@ -71,6 +89,7 @@ import NudgieCore
 
     @Test func disablingOneKindOfAGroupedCardKeepsTheCountdownConsistent() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
         var s = rig.coordinator.settings
         var walk = s.reminder(.walk)
         walk.intervalMinutes = 20                     // now due at the same time as eyes
@@ -91,6 +110,7 @@ import NudgieCore
 
     @Test func didItIgnoresAStaleCardID() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
         rig.advance(20 * 60)
         let stale = UUID()
         rig.coordinator.didIt(cardID: stale)
@@ -119,6 +139,7 @@ import NudgieCore
 
     @Test func eyesCardAppearsAfterTwentyActiveMinutesAndCountsWhenTheRingRunsOut() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
         rig.advance(20 * 60)
         #expect(rig.coordinator.card?.plan.kinds == [.eyes])
         #expect(rig.coordinator.card?.isForced == false)
@@ -129,6 +150,7 @@ import NudgieCore
 
     @Test func meetingHidesTheCardAndItReturnsAfterTheSettleGap() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
         rig.advance(20 * 60)
         #expect(rig.coordinator.card != nil)
         rig.quiet.state.cameraBusy = true
@@ -146,6 +168,7 @@ import NudgieCore
 
     @Test func takeABreakNowSurvivesAMeeting() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
         rig.quiet.state.micBusy = true
         rig.advance(1)
         rig.coordinator.takeBreakNow()
@@ -156,6 +179,7 @@ import NudgieCore
 
     @Test func takeABreakNowIsIgnoredWhilePaused() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
         rig.advance(1)
         rig.coordinator.pause(hours: 1)
         #expect(rig.coordinator.canTakeBreakNow == false)
@@ -166,6 +190,7 @@ import NudgieCore
 
     @Test func snoozeCountsAndReschedules() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
         rig.advance(20 * 60)
         rig.coordinator.snooze()
         #expect(rig.coordinator.card == nil)
@@ -175,6 +200,7 @@ import NudgieCore
 
     @Test func pauseHidesTheCardAndReportsPaused() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
         rig.advance(20 * 60)
         rig.coordinator.pause(hours: 1)
         #expect(rig.coordinator.card == nil)
@@ -186,6 +212,7 @@ import NudgieCore
 
     @Test func demoShowsAForcedCardEvenWhenAway() {
         let rig = makeRig()
+        defer { rig.cleanUp() }
         rig.activity.state = ActivityState(idleSeconds: 600)
         rig.coordinator.start(demo: .water)
         #expect(rig.coordinator.card?.plan.kinds == [.water])
@@ -198,5 +225,32 @@ import NudgieCore
         #expect(MenuBarView.dueText(0) == "now")
         #expect(MenuBarView.dueText(30) == "in 1 min")
         #expect(MenuBarView.dueText(61) == "in 2 min")
+    }
+
+    @Test func scheduledCardPlaysTheConfiguredSoundOnce() {
+        let rig = makeRig()
+        defer { rig.cleanUp() }
+        rig.advance(1200)
+        #expect(rig.soundLog.names == ["Pop"])
+    }
+
+    @Test func forcedCardDuringAMeetingPlaysNoSound() {
+        let rig = makeRig()
+        defer { rig.cleanUp() }
+        rig.quiet.state.micBusy = true
+        rig.advance(1)
+        rig.coordinator.takeBreakNow()
+        #expect(rig.soundLog.names.isEmpty)
+    }
+
+    @Test func noSoundWhenSoundIsDisabled() {
+        let rig = makeRig()
+        defer { rig.cleanUp() }
+        var s = rig.coordinator.settings
+        s.soundEnabled = false
+        rig.coordinator.updateSettings(s)
+        rig.advance(1200)
+        #expect(rig.soundLog.names.isEmpty)
+        #expect(rig.coordinator.card != nil)
     }
 }

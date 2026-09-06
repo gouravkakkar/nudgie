@@ -4,12 +4,10 @@ import NudgieCore
 @testable import Nudgie
 
 @MainActor @Suite struct StoreTests {
-    func freshDefaults() -> UserDefaults {
-        UserDefaults(suiteName: "nudgie.tests.\(UUID().uuidString)")!
-    }
-
     @Test func settingsRoundTrip() {
-        let store = Store(defaults: freshDefaults())
+        let testDefaults = TestDefaults()
+        defer { testDefaults.cleanUp() }
+        let store = Store(defaults: testDefaults.defaults)
         var s = NudgieSettings.defaults
         s.snoozeMinutes = 7
         store.save(s)
@@ -17,11 +15,15 @@ import NudgieCore
     }
 
     @Test func missingSettingsGiveDefaults() {
-        #expect(Store(defaults: freshDefaults()).loadSettings() == .defaults)
+        let testDefaults = TestDefaults()
+        defer { testDefaults.cleanUp() }
+        #expect(Store(defaults: testDefaults.defaults).loadSettings() == .defaults)
     }
 
     @Test func brokenSettingsFallBackAndKeepABackup() {
-        let defaults = freshDefaults()
+        let testDefaults = TestDefaults()
+        defer { testDefaults.cleanUp() }
+        let defaults = testDefaults.defaults
         let broken = Data("{broken".utf8)
         defaults.set(broken, forKey: Store.settingsKey)
         let store = Store(defaults: defaults)
@@ -30,7 +32,9 @@ import NudgieCore
     }
 
     @Test func statsRoundTrip() {
-        let store = Store(defaults: freshDefaults())
+        let testDefaults = TestDefaults()
+        defer { testDefaults.cleanUp() }
+        let store = Store(defaults: testDefaults.defaults)
         var stats = DailyStats()
         stats.record(taken: 2, snoozed: 1, on: Date(), calendar: .current)
         store.save(stats)

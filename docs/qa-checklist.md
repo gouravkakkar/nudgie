@@ -15,11 +15,12 @@ Run through this before tagging a release. Tick each line.
 - [ ] Leave the Mac idle 6+ minutes, then run --demo water: the card still appears (forced).
 
 ## Meetings
-- [ ] Open Photo Booth: status "Quiet: Camera is on", icon shows shh face, `--demo` card is hidden or does not appear.
+- [ ] Open Photo Booth: status "Quiet: Camera is on", icon shows the shh face; a *scheduled* card waits; `--demo eyes` still shows (forced) but plays no sound.
 - [ ] Quit Photo Booth: status back to Counting within 2 s; a pending card appears after about 30 s.
 - [ ] Click into Safari: status "Quiet: Meeting app in front". Click into Terminal: Counting.
 - [ ] Settings → toggle the camera rule off → Photo Booth no longer makes it quiet.
-- [ ] Voice Memos → record: status "Quiet: Mic is on"; stop: Counting. Music through AirPods alone must NOT make it quiet.
+- [ ] Voice Memos → record: status "Quiet: Mic is on"; stop: Counting. Music through AirPods alone must NOT make it quiet (needs macOS 14.2 or newer; 14.0 and 14.1 fall back to a device-wide flag that does count playback).
+- [ ] No sound plays for any card while quiet.
 
 ## Timing
 - [ ] Lock the screen for 5+ minutes, unlock: every "Next up" row is back to its full interval.
