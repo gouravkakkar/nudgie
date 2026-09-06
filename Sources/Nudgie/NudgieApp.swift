@@ -8,12 +8,13 @@ struct NudgieApp: App {
             MenuBarView(coordinator: appDelegate.coordinator)
         } label: {
             Image(nsImage: MenuBarIcon.image(for: appDelegate.coordinator.iconState))
+                .id(appDelegate.coordinator.iconState)
                 .accessibilityLabel("Nudgie")
         }
         .menuBarExtraStyle(.menu)
 
         Settings {
-            Text("Settings arrive in Task 12").padding(40)
+            SettingsView(coordinator: appDelegate.coordinator)
         }
     }
 }
