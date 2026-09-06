@@ -89,6 +89,7 @@ final class Coordinator {
     }
 
     func start(demo: ReminderKind? = nil) {
+        guard timer == nil else { return }
         if let demo { engine.triggerNow(demo) }
         activityToken = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiatedAllowingIdleSystemSleep], reason: "Nudgie heartbeat")
@@ -180,7 +181,7 @@ final class Coordinator {
     // MARK: Menu actions
 
     func takeBreakNow() {
-        guard card == nil, let soonest = nextUp.min(by: { $0.seconds < $1.seconds }) else { return }
+        guard canTakeBreakNow, let soonest = nextUp.min(by: { $0.seconds < $1.seconds }) else { return }
         engine.triggerNow(soonest.kind)
         if let plan = planner.forcePlan(kinds: [soonest.kind], settings: settings) {
             show(plan, forced: true)
@@ -223,9 +224,14 @@ final class Coordinator {
             let plan = CardPlan(kinds: kept,
                                 countdownSeconds: longest > 0 ? longest : CardPlanner.untimedDisplaySeconds,
                                 isTimed: longest > 0)
+            // Recompute from startedAt (not the old secondsLeft): the dropped kind may have had a
+            // longer break, and the elapsed time already spent must count against the new, shorter one.
+            let elapsed = Int(now.timeIntervalSince(current.startedAt).rounded(.down))
+            let secondsLeft = max(0, plan.countdownSeconds - elapsed)
             card = CardPresentation(id: current.id, plan: plan, headline: current.headline,
                                     startedAt: current.startedAt, isForced: current.isForced,
-                                    secondsLeft: min(current.secondsLeft, plan.countdownSeconds))
+                                    secondsLeft: secondsLeft)
+            if secondsLeft == 0 { didIt() }   // the shorter countdown already ran out
         }
     }
 
@@ -238,6 +244,17 @@ final class Coordinator {
     var nextUp: [NextUp] {
         settings.enabledKinds.compactMap { kind in
             engine.secondsUntilDue(kind).map { NextUp(kind: kind, seconds: $0) }
+        }
+    }
+
+    /// "Take a break now" only makes sense while Nudgie is actually counting: paused, off the
+    /// clock, or away would either flash a card and hide it again, or leave a kind pending that
+    /// ambushes the user once the pause ends.
+    var canTakeBreakNow: Bool {
+        guard card == nil, !nextUp.isEmpty else { return false }
+        switch status {
+        case .counting, .quiet: return true
+        case .paused, .offTheClock, .away: return false
         }
     }
 

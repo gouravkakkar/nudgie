@@ -69,6 +69,26 @@ import NudgieCore
         #expect(rig.coordinator.today.taken == 1)     // only the eyes card that ran its ring down
     }
 
+    @Test func disablingOneKindOfAGroupedCardKeepsTheCountdownConsistent() {
+        let rig = makeRig()
+        var s = rig.coordinator.settings
+        var walk = s.reminder(.walk)
+        walk.intervalMinutes = 20                     // now due at the same time as eyes
+        s.setReminder(walk, for: .walk)
+        rig.coordinator.updateSettings(s)
+        rig.advance(20 * 60)                           // both land on one card together
+        #expect(rig.coordinator.card?.plan.kinds == [.eyes, .walk])
+        #expect(rig.coordinator.card?.plan.countdownSeconds == 180)   // walk's longer break wins
+        rig.advance(5)
+        s = rig.coordinator.settings
+        walk = s.reminder(.walk)
+        walk.isEnabled = false
+        s.setReminder(walk, for: .walk)
+        rig.coordinator.updateSettings(s)
+        #expect(rig.coordinator.card?.plan.kinds == [.eyes])
+        #expect(rig.coordinator.card?.secondsLeft == 15)   // eyes' 20 s break minus the 5 s already spent
+    }
+
     @Test func didItIgnoresAStaleCardID() {
         let rig = makeRig()
         rig.advance(20 * 60)
@@ -118,7 +138,9 @@ import NudgieCore
         rig.quiet.state.cameraBusy = false
         rig.advance(29)
         #expect(rig.coordinator.card == nil)      // still inside the 30 s settle gap
-        rig.advance(2)
+        rig.advance(1)
+        #expect(rig.coordinator.card == nil)      // tick 1231: breathing gap satisfied, settle gap not
+        rig.advance(1)
         #expect(rig.coordinator.card?.plan.kinds == [.eyes])
     }
 
@@ -130,6 +152,16 @@ import NudgieCore
         #expect(rig.coordinator.card?.isForced == true)
         rig.advance(5)
         #expect(rig.coordinator.card != nil)
+    }
+
+    @Test func takeABreakNowIsIgnoredWhilePaused() {
+        let rig = makeRig()
+        rig.advance(1)
+        rig.coordinator.pause(hours: 1)
+        #expect(rig.coordinator.canTakeBreakNow == false)
+        rig.coordinator.takeBreakNow()
+        #expect(rig.coordinator.card == nil)
+        #expect(rig.coordinator.engine.pending.isEmpty)
     }
 
     @Test func snoozeCountsAndReschedules() {

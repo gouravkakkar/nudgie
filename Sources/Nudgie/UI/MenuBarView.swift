@@ -13,7 +13,7 @@ struct MenuBarView: View {
         Text("Today: \(coordinator.today.taken) breaks taken, \(coordinator.today.snoozed) snoozed")
         Divider()
         Button("Take a break now") { coordinator.takeBreakNow() }
-            .disabled(coordinator.card != nil || coordinator.nextUp.isEmpty)
+            .disabled(!coordinator.canTakeBreakNow)
         Menu("Pause") {
             Button("For 1 hour") { coordinator.pause(hours: 1) }
             Button("Until tomorrow") { coordinator.pauseUntilTomorrow() }
