@@ -71,15 +71,19 @@ final class Coordinator {
     private let verbose = CommandLine.arguments.contains("--verbose")
     /// Keeps the heartbeat's Timer from being throttled by App Nap while Nudgie has no window up.
     private var activityToken: NSObjectProtocol?
+    /// Injectable so tests can stay silent instead of playing real system sounds.
+    @ObservationIgnored private var playSound: (String) -> Void
 
     init(store: Store = Store(),
          activity: any ActivitySampling = ActivityProbe(),
          quiet: any QuietSampling = QuietProbe(),
-         clock: @escaping () -> Date = { Date() }) {
+         clock: @escaping () -> Date = { Date() },
+         playSound: @escaping (String) -> Void = Sound.play) {
         self.store = store
         self.activityProbe = activity
         self.quietProbe = quiet
         self.clock = clock
+        self.playSound = playSound
         // @Observable turns `settings` into an accessor, so it cannot be read until every
         // stored property is initialised. Go through a local.
         let loaded = store.loadSettings()
@@ -150,7 +154,7 @@ final class Coordinator {
         card = CardPresentation(id: UUID(), plan: plan, headline: headline, startedAt: now, isForced: forced,
                                 secondsLeft: plan.countdownSeconds)
         if settings.soundEnabled, !planner.isQuiet {
-            Sound.play(settings.soundName)
+            playSound(settings.soundName)
         }
         log("show \(plan.kinds.map(\.rawValue)) for \(plan.countdownSeconds)s")
         onShowCard?()

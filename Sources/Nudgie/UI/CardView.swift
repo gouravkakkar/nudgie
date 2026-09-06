@@ -53,13 +53,13 @@ struct CardView: View {
                     .lineLimit(2)
                 HStack(spacing: 8) {
                     Button { celebrate(card) } label: {
-                        Text("Did it!").font(Theme.headline(13)).lineLimit(1).fixedSize()
+                        Text("Did it!").font(Theme.headline(13)).lineLimit(1).minimumScaleFactor(0.85)
                     }
                     .buttonStyle(PillButtonStyle(fill: accent, outline: Theme.ink, text: Theme.ink))
                     .disabled(celebrating)
                     Button { coordinator.snooze() } label: {
                         Text("\(coordinator.settings.snoozeMinutes) more min").font(Theme.body(12))
-                            .lineLimit(1).fixedSize()
+                            .lineLimit(1).minimumScaleFactor(0.85)
                     }
                     .buttonStyle(PillButtonStyle(fill: .clear, outline: text, text: text))
                     .disabled(celebrating)
@@ -78,11 +78,12 @@ struct CardView: View {
             Button { coordinator.close() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .black))
-                    .foregroundStyle(text.opacity(0.6))
+                    .foregroundStyle(text.opacity(0.7))
                     .padding(8)
             }
             .buttonStyle(.plain)
             .padding(4)
+            .disabled(celebrating)
             .accessibilityLabel("Close without counting")
         }
         .rotationEffect(.degrees(appeared || reduceMotion ? 0 : -2))

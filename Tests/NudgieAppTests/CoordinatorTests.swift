@@ -40,7 +40,7 @@ import NudgieCore
         let quiet = FakeQuiet()
         let clock = FakeClock()
         let coordinator = Coordinator(store: Store(defaults: defaults), activity: activity, quiet: quiet,
-                                      clock: { clock.now })
+                                      clock: { clock.now }, playSound: { _ in })
         return Rig(coordinator: coordinator, activity: activity, quiet: quiet, clock: clock)
     }
 
