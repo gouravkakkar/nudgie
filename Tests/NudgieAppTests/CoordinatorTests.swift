@@ -184,6 +184,16 @@ import NudgieCore
         }
     }
 
+    @Test func demoShowsAForcedCardEvenWhenAway() {
+        let rig = makeRig()
+        rig.activity.state = ActivityState(idleSeconds: 600)
+        rig.coordinator.start(demo: .water)
+        #expect(rig.coordinator.card?.plan.kinds == [.water])
+        #expect(rig.coordinator.card?.isForced == true)
+        rig.advance(3)
+        #expect(rig.coordinator.card != nil)
+    }
+
     @Test func dueTextFormats() {
         #expect(MenuBarView.dueText(0) == "now")
         #expect(MenuBarView.dueText(30) == "in 1 min")

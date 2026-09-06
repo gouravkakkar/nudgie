@@ -90,7 +90,6 @@ final class Coordinator {
 
     func start(demo: ReminderKind? = nil) {
         guard timer == nil else { return }
-        if let demo { engine.triggerNow(demo) }
         activityToken = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiatedAllowingIdleSystemSleep], reason: "Nudgie heartbeat")
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -99,6 +98,16 @@ final class Coordinator {
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
         tick()
+        // `--demo` means "show me this card now": use the same forced path as "Take a break
+        // now" so a Mac idle for 300+ seconds at launch still shows it, instead of relying on
+        // the normal scheduled path, which the very first tick above may have already gated on
+        // away/reset. If the kind is disabled in settings, triggerNow is a no-op: no card shows.
+        if let demo {
+            engine.triggerNow(demo)
+            if let plan = planner.forcePlan(kinds: [demo], settings: settings) {
+                show(plan, forced: true)
+            }
+        }
     }
 
     // MARK: Heartbeat

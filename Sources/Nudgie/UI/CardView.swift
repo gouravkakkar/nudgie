@@ -3,7 +3,7 @@ import NudgieCore
 
 /// The floating reminder card: ring + mascot on the left, copy and buttons on the right.
 struct CardView: View {
-    static let width: CGFloat = 340
+    static let width: CGFloat = 360
     static let height: CGFloat = 170
     /// Extra room around the card for the sticker shadow and the entry tilt.
     static let margin: CGFloat = 12
@@ -52,11 +52,14 @@ struct CardView: View {
                     .foregroundStyle(text.opacity(0.8))
                     .lineLimit(2)
                 HStack(spacing: 8) {
-                    Button { celebrate(card) } label: { Text("Did it!").font(Theme.headline(13)) }
-                        .buttonStyle(PillButtonStyle(fill: accent, outline: Theme.ink, text: Theme.ink))
-                        .disabled(celebrating)
+                    Button { celebrate(card) } label: {
+                        Text("Did it!").font(Theme.headline(13)).lineLimit(1).fixedSize()
+                    }
+                    .buttonStyle(PillButtonStyle(fill: accent, outline: Theme.ink, text: Theme.ink))
+                    .disabled(celebrating)
                     Button { coordinator.snooze() } label: {
                         Text("\(coordinator.settings.snoozeMinutes) more min").font(Theme.body(12))
+                            .lineLimit(1).fixedSize()
                     }
                     .buttonStyle(PillButtonStyle(fill: .clear, outline: text, text: text))
                     .disabled(celebrating)
@@ -64,6 +67,7 @@ struct CardView: View {
                     Text(timeLeft(card))
                         .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
                         .foregroundStyle(text.opacity(0.7))
+                        .lineLimit(1)
                 }
             }
         }
