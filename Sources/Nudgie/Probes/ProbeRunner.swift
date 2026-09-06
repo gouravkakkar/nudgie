@@ -4,6 +4,7 @@ import NudgieCore
 /// `Nudgie --probe`: print live detector values once a second. Ctrl-C to stop.
 enum ProbeRunner {
     static func run() {
+        setvbuf(stdout, nil, _IOLBF, 0)
         let activity = ActivityProbe()
         let quiet = QuietProbe()
         print("Nudgie probe. Move the mouse, lock the screen, open Photo Booth, switch apps. Ctrl-C to stop.")

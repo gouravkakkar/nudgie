@@ -4,10 +4,15 @@ struct NudgieApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("Nudgie", systemImage: "face.smiling") {
-            Button("Quit Nudgie") { NSApplication.shared.terminate(nil) }
-                .keyboardShortcut("q")
+        MenuBarExtra {
+            MenuBarView(coordinator: appDelegate.coordinator)
+        } label: {
+            Image(systemName: "face.smiling")
         }
         .menuBarExtraStyle(.menu)
+
+        Settings {
+            Text("Settings arrive in Task 12").padding(40)
+        }
     }
 }
