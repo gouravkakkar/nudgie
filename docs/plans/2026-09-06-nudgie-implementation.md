@@ -18,7 +18,7 @@
 - Away threshold 300 s (5 min) resets all accumulators. Active = not locked, not asleep, idle < 300 s.
 - Card: breathing gap 30 s between cards, settle gap 30 s after quiet ends, untimed reminders display 30 s then count as done.
 - Quiet rules in v1: camera-or-mic busy, quiet-app-in-front (bundle id prefix match). No Focus rule.
-- Card panel: `NSPanel`, `.nonactivatingPanel`, level `.floating`, `[.canJoinAllSpaces, .fullScreenAuxiliary]`, top-right of the menu-bar screen, 16 pt inset, about 340 × 170 pt. Never takes keyboard focus.
+- Card panel: `NSPanel`, `.nonactivatingPanel`, level `.floating`, `[.canJoinAllSpaces, .fullScreenAuxiliary]`, top-right of the menu-bar screen, 16 pt inset, about 360 × 170 pt (widened from 340 during execution so the snooze pill never truncates). Never takes keyboard focus.
 - Accents: eyes electric mint `#3DF5B4`, water sky `#4DB8FF`, walk tangerine `#FF8C42`, posture bubblegum `#FF6FB5`, stretch lemon `#FFE24D`. Ink `#1B1B1F`, cream `#FFF8EE`. Text contrast ≥ 4.5:1. SF Rounded.
 - Sound default on, default name `Pop`, files in `/System/Library/Sounds/<name>.aiff`. Never play while quiet.
 - Respect Reduce Motion (no wobble, no confetti).
@@ -3051,7 +3051,7 @@ import NudgieCore
 
 /// The floating reminder card: ring + mascot on the left, copy and buttons on the right.
 struct CardView: View {
-    static let width: CGFloat = 340
+    static let width: CGFloat = 360   // 340 truncated the snooze pill on timed cards
     static let height: CGFloat = 170
     /// Extra room around the card for the sticker shadow and the entry tilt.
     static let margin: CGFloat = 12
