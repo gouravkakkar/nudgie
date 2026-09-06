@@ -1,2 +1,8 @@
+import AppKit
 import NudgieCore
-print("Nudgie \(NudgieCore.version)")
+
+if CommandLine.arguments.contains("--probe") {
+    ProbeRunner.run()
+} else {
+    NudgieApp.main()
+}
