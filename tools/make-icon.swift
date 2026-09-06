@@ -61,4 +61,8 @@ iconutil.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
 iconutil.arguments = ["-c", "icns", iconset.path, "-o", "Resources/Nudgie.icns"]
 try iconutil.run()
 iconutil.waitUntilExit()
-print(iconutil.terminationStatus == 0 ? "Wrote Resources/Nudgie.icns" : "iconutil failed with \(iconutil.terminationStatus)")
+if iconutil.terminationStatus != 0 {
+    FileHandle.standardError.write("iconutil failed with \(iconutil.terminationStatus)\n".data(using: .utf8)!)
+    exit(1)
+}
+print("Wrote Resources/Nudgie.icns")
