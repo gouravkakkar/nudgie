@@ -140,6 +140,9 @@ final class Coordinator {
         let headline = copy.line(for: plan.kinds[0])
         card = CardPresentation(id: UUID(), plan: plan, headline: headline, startedAt: now, isForced: forced,
                                 secondsLeft: plan.countdownSeconds)
+        if settings.soundEnabled, !planner.isQuiet {
+            Sound.play(settings.soundName)
+        }
         log("show \(plan.kinds.map(\.rawValue)) for \(plan.countdownSeconds)s")
         onShowCard?()
     }

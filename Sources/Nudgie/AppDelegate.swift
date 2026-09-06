@@ -3,9 +3,11 @@ import NudgieCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let coordinator = Coordinator()
+    private var cardPanel: CardPanelController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        cardPanel = CardPanelController(coordinator: coordinator)
         coordinator.start(demo: Self.demoKind())
     }
 
