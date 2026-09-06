@@ -29,6 +29,22 @@ import Testing
         #expect(s.days.keys.sorted() == ["2026-09-06", "2026-09-07"])
     }
 
+    @Test func recordingAnOlderDayKeepsTheNewerDay() {
+        var s = DailyStats()
+        s.record(taken: 1, on: Self.day(7), calendar: Self.utc)
+        s.record(taken: 1, on: Self.day(6), calendar: Self.utc)
+        #expect(s.days.keys.sorted() == ["2026-09-06", "2026-09-07"])
+        #expect(s.count(on: Self.day(7), calendar: Self.utc) == DailyStats.DayCount(taken: 1))
+        #expect(s.count(on: Self.day(6), calendar: Self.utc) == DailyStats.DayCount(taken: 1))
+    }
+
+    @Test func recordingTwoDaysBackIsDroppedButTodayStays() {
+        var s = DailyStats()
+        s.record(taken: 1, on: Self.day(7), calendar: Self.utc)
+        s.record(taken: 1, on: Self.day(5), calendar: Self.utc)
+        #expect(s.days.keys.sorted() == ["2026-09-07"])
+    }
+
     @Test func roundTripsThroughJSON() throws {
         var s = DailyStats()
         s.record(taken: 4, snoozed: 2, on: Self.day(7), calendar: Self.utc)

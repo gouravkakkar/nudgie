@@ -27,16 +27,43 @@ public struct DailyStats: Codable, Equatable, Sendable {
         count.taken += taken
         count.snoozed += snoozed
         days[key] = count
-        prune(keeping: date, calendar: calendar)
+        prune(currentDate: date, currentKey: key, calendar: calendar)
     }
 
     public func count(on date: Date, calendar: Calendar) -> DayCount {
         days[Self.key(for: date, calendar: calendar)] ?? DayCount()
     }
 
-    private mutating func prune(keeping date: Date, calendar: Calendar) {
-        let today = Self.key(for: date, calendar: calendar)
-        let yesterday = Self.key(for: calendar.date(byAdding: .day, value: -1, to: date) ?? date, calendar: calendar)
-        days = days.filter { $0.key == today || $0.key == yesterday }
+    /// Keeps only the latest day seen across every `record` call (not just this one) and the day
+    /// before it. Anchoring on the latest key, rather than on `currentKey`, stops an older
+    /// out-of-order `record` from pruning away a newer day that was already stored.
+    private mutating func prune(currentDate: Date, currentKey: String, calendar: Calendar) {
+        let latestKey = max(currentKey, days.keys.max() ?? currentKey)
+        let anchorKey: String
+        let previousKey: String
+        if let previous = Self.previousDayKey(before: latestKey, calendar: calendar) {
+            anchorKey = latestKey
+            previousKey = previous
+        } else {
+            // The stored key didn't parse (e.g. corrupted data) — fall back to anchoring on the
+            // current date rather than risk deleting everything.
+            anchorKey = currentKey
+            previousKey = Self.key(for: calendar.date(byAdding: .day, value: -1, to: currentDate) ?? currentDate, calendar: calendar)
+        }
+        days = days.filter { $0.key == anchorKey || $0.key == previousKey }
+    }
+
+    /// Parses a "yyyy-MM-dd" key back into a date, steps it back one day, and re-keys it.
+    /// Returns `nil` if `key` isn't a well-formed date in this calendar.
+    private static func previousDayKey(before key: String, calendar: Calendar) -> String? {
+        let parts = key.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2]),
+              let date = calendar.date(from: DateComponents(year: year, month: month, day: day)),
+              let previousDate = calendar.date(byAdding: .day, value: -1, to: date)
+        else {
+            return nil
+        }
+        return Self.key(for: previousDate, calendar: calendar)
     }
 }
