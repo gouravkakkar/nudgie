@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nudgie — free break reminder for Mac (20-20-20 eye breaks, posture, water, stretch)</title>
+<meta name="description" content="Nudgie is a free, quirky break reminder for macOS. 20-20-20 eye breaks, posture, water, walk and stretch nudges that stay quiet during meetings. Native Swift menu bar app, no account, nothing leaves your Mac. A free alternative to LookAway and Time Out.">
+<link rel="canonical" href="https://gouravkakkar.github.io/nudgie/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Nudgie — the break reminder that knows you're in a meeting">
+<meta property="og:description" content="Free macOS menu bar app. Eyes, walk, water, posture and stretch nudges that count only real screen time and stay quiet when your camera or mic is on.">
+<meta property="og:url" content="https://gouravkakkar.github.io/nudgie/">
+<meta property="og:image" content="https://gouravkakkar.github.io/nudgie/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Nudgie","operatingSystem":"macOS 14 or later","applicationCategory":"HealthApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"downloadUrl":"https://github.com/gouravkakkar/nudgie/releases/latest/download/Nudgie.app.zip","softwareVersion":"0.1.0","author":{"@type":"Person","name":"Gourav Kakkar"},"description":"Free break reminder for macOS: 20-20-20 eye breaks, posture, water, walk and stretch nudges that stay quiet during meetings."}
+</script>
+<style>
+  :root {
+    --ink: #1B1B1F;
+    --cream: #FFF8EE;
+    --mint: #3DF5B4;
+    --sky: #4DB8FF;
+    --tangerine: #FF8C42;
+    --bubblegum: #FF6FB5;
+    --lemon: #FFE24D;
+    --ground: var(--cream);
+    --text: var(--ink);
+    --card: #FFFDF8;
+    --shadow: var(--ink);
+    --outline: var(--ink);
+    --muted: rgba(27, 27, 31, 0.72);
+    --display: "Fredoka", ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
+    --body: "Nunito", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #15151A;
+      --text: var(--cream);
+      --card: #1F1F26;
+      --shadow: #000;
+      --outline: var(--cream);
+      --muted: rgba(255, 248, 238, 0.72);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    background-image: radial-gradient(rgba(27,27,31,0.12) 1px, transparent 1.4px);
+    background-size: 22px 22px;
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background-image: radial-gradient(rgba(255,248,238,0.10) 1px, transparent 1.4px); }
+  }
+  a { color: inherit; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.08; margin: 0; }
+  h1 { font-size: clamp(2.4rem, 6vw, 4.4rem); }
+  h2 { font-size: clamp(1.7rem, 3.6vw, 2.5rem); margin-bottom: 0.5em; }
+  h3 { font-size: 1.15rem; }
+  p { margin: 0 0 1em; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* Sticker: flat fill, thick outline, hard offset shadow */
+  .sticker {
+    background: var(--card);
+    border: 3px solid var(--outline);
+    border-radius: 24px;
+    box-shadow: 8px 8px 0 var(--shadow);
+  }
+
+  /* Header */
+  header { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 1.35rem; text-decoration: none; }
+  .brand svg { width: 34px; height: 34px; }
+  nav a { text-decoration: none; font-weight: 800; margin-left: 20px; font-size: 0.95rem; }
+  nav a:hover, .btn:hover { text-decoration: underline; }
+
+  /* Hero */
+  .hero { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; padding: 48px 0 72px; }
+  .eyebrow { display: inline-block; font-weight: 800; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; background: var(--lemon); color: var(--ink); border: 3px solid var(--ink); border-radius: 999px; padding: 4px 12px; margin-bottom: 20px; transform: rotate(-2deg); }
+  .lede { font-size: 1.2rem; max-width: 34rem; color: var(--muted); }
+  .cta { display: flex; flex-wrap: wrap; gap: 14px; margin: 26px 0 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 1.1rem; text-decoration: none; color: var(--ink); background: var(--mint); border: 3px solid var(--ink); border-radius: 999px; padding: 12px 22px; box-shadow: 5px 5px 0 var(--ink); transition: transform 120ms ease, box-shadow 120ms ease; }
+  .btn:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--ink); text-decoration: none; }
+  .btn:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--ink); }
+  .btn.ghost { background: var(--card); color: var(--text); border-color: var(--outline); box-shadow: 5px 5px 0 var(--shadow); }
+  .btn:focus-visible, a:focus-visible, button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
+  .fine { font-size: 0.92rem; color: var(--muted); }
+
+  /* The live card */
+  .demo { position: relative; padding: 20px 8px 30px; }
+  .card { position: relative; width: min(100%, 420px); margin: 0 auto; padding: 22px; display: grid; grid-template-columns: 104px 1fr; gap: 18px; align-items: center; transform: rotate(-2deg); transition: transform 500ms cubic-bezier(.2,1.4,.4,1); }
+  .card.settled { transform: rotate(0deg); }
+  .card .closex { position: absolute; top: 10px; right: 14px; border: 0; background: none; font: 800 14px var(--body); color: var(--muted); cursor: pointer; padding: 6px; }
+  .ring { position: relative; width: 104px; height: 104px; }
+  .ring svg { width: 104px; height: 104px; transform: rotate(-90deg); }
+  .ring .track { fill: none; stroke: var(--outline); opacity: 0.15; stroke-width: 9; }
+  .ring .fill { fill: none; stroke: var(--accent, var(--mint)); stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 300ms; }
+  .mascot { position: absolute; inset: 14px; }
+  .headline { font-family: var(--display); font-weight: 700; font-size: 1.28rem; line-height: 1.15; margin: 0 0 6px; }
+  .instruction { font-size: 0.95rem; color: var(--muted); margin: 0 0 12px; min-height: 2.6em; }
+  .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pill { font-family: var(--display); font-weight: 700; font-size: 0.95rem; border: 2px solid var(--ink); border-radius: 999px; padding: 6px 14px; cursor: pointer; background: var(--accent, var(--mint)); color: var(--ink); transition: transform 100ms; }
+  .pill.ghost { background: transparent; color: var(--text); border-color: var(--outline); font-family: var(--body); font-weight: 800; font-size: 0.85rem; }
+  .pill:active { transform: scale(0.95); }
+  .timeleft { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; }
+  .confetti { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+  .confetti i { position: absolute; width: 10px; height: 6px; border-radius: 2px; will-change: transform, opacity; }
+  .caption { text-align: center; font-size: 0.9rem; color: var(--muted); margin-top: 18px; }
+
+  /* Mascot SVG */
+  .mascot .body { fill: var(--accent, var(--mint)); stroke: #1B1B1F; stroke-width: 3; transform-origin: 50% 50%; transition: transform 500ms ease; }
+  .mascot .eye { fill: #fff; stroke: #1B1B1F; stroke-width: 2; }
+  .mascot .pupil { fill: #1B1B1F; transition: transform 300ms; }
+  .mascot .mouth { fill: none; stroke: #1B1B1F; stroke-width: 2.5; stroke-linecap: round; }
+  .mascot .legs, .mascot .glass { display: none; }
+  .mascot .legs { fill: #1B1B1F; transform-origin: 50% 20%; }
+  .mascot.pose-walk .legs { display: block; }
+  .mascot.pose-water .glass { display: block; }
+  .mascot.pose-stretch .body { transform: scale(0.82, 1.22); }
+  .mascot.pose-posture .body { transform: scale(1.05, 0.86); }
+  @media (prefers-reduced-motion: no-preference) {
+    .mascot.pose-eyes .pupil { animation: dart 1.2s ease-in-out infinite alternate; }
+    .mascot.pose-walk .leg-l { animation: swing 0.6s ease-in-out infinite alternate; }
+    .mascot.pose-walk .leg-r { animation: swing 0.6s ease-in-out infinite alternate-reverse; }
+    .mascot.pose-walk .body, .mascot.pose-walk .face { animation: bounce 0.6s ease-in-out infinite alternate; }
+    .mascot.pose-stretch .body { animation: taffy 1.2s ease-in-out infinite alternate; }
+    .mascot.pose-posture .body { animation: situp 1.6s ease-in-out infinite alternate; }
+  }
+  @keyframes dart { from { transform: translateX(-3px); } to { transform: translateX(3px); } }
+  @keyframes swing { from { transform: rotate(-16deg); } to { transform: rotate(16deg); } }
+  @keyframes bounce { from { translate: 0 0; } to { translate: 0 -4px; } }
+  @keyframes taffy { from { transform: scale(0.82, 1.1); } to { transform: scale(0.82, 1.28); } }
+  @keyframes situp { from { transform: scale(1.05, 0.8); } to { transform: scale(1.0, 1.0); } }
+
+  /* Sections */
+  section { padding: 56px 0; }
+  .nudges { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
+  .nudge { padding: 18px 16px; border-radius: 20px; }
+  .nudge:nth-child(odd) { transform: rotate(-1deg); }
+  .nudge:nth-child(even) { transform: rotate(1deg); }
+  .nudge .emoji { font-size: 2rem; line-height: 1; margin-bottom: 8px; }
+  .nudge h3 { margin-bottom: 4px; }
+  .nudge p { margin: 0; font-size: 0.95rem; color: var(--muted); }
+  .nudge .every { display: inline-block; font-weight: 800; font-size: 0.8rem; margin-top: 8px; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--ink); color: var(--ink); }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .panel { padding: 28px; }
+  .rules { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .rules li { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: start; }
+  .rules .ic { width: 44px; height: 44px; border-radius: 12px; border: 3px solid var(--ink); display: grid; place-items: center; font-size: 1.3rem; }
+  .rules b { display: block; font-family: var(--display); font-weight: 700; font-size: 1.05rem; }
+  .rules span { color: var(--muted); font-size: 0.95rem; }
+
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .fact { padding: 22px; }
+  .fact h3 { margin-bottom: 6px; }
+  .fact p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+  .install ol { padding-left: 1.2em; margin: 0 0 12px; }
+  .install li { margin-bottom: 8px; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.9em; background: rgba(27,27,31,0.08); padding: 2px 6px; border-radius: 6px; }
+  @media (prefers-color-scheme: dark) { code { background: rgba(255,248,238,0.12); } }
+  pre { background: var(--ink); color: var(--cream); padding: 14px 16px; border-radius: 14px; overflow-x: auto; font-size: 0.9rem; }
+  pre code { background: none; padding: 0; color: inherit; }
+
+  .compare { text-align: center; font-size: 1.05rem; color: var(--muted); max-width: 46rem; margin: 0 auto; }
+  footer { padding: 36px 0 48px; font-size: 0.92rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; align-items: center; }
+  footer a { font-weight: 800; }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; padding-top: 24px; }
+    .nudges { grid-template-columns: repeat(2, 1fr); }
+    .two, .facts { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) {
+    .nudges { grid-template-columns: 1fr; }
+    .card { grid-template-columns: 1fr; text-align: center; }
+    .ring { margin: 0 auto; }
+    .actions { justify-content: center; }
+    .timeleft { margin-left: 0; width: 100%; }
+    nav { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card { transform: none; transition: none; }
+    .ring .fill { transition: none; }
+    .btn, .pill { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="#" aria-label="Nudgie home">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><ellipse cx="20" cy="21" rx="16" ry="14" fill="#3DF5B4" stroke="#1B1B1F" stroke-width="3"/><circle cx="14" cy="19" r="4" fill="#fff" stroke="#1B1B1F" stroke-width="1.6"/><circle cx="26" cy="19" r="4" fill="#fff" stroke="#1B1B1F" stroke-width="1.6"/><circle cx="15" cy="19.5" r="1.6" fill="#1B1B1F"/><circle cx="27" cy="19.5" r="1.6" fill="#1B1B1F"/><path d="M15 27 Q20 31 25 27" fill="none" stroke="#1B1B1F" stroke-width="2.2" stroke-linecap="round"/></svg>
+      Nudgie
+    </a>
+    <nav aria-label="Page">
+      <a href="#nudges">What it nudges</a>
+      <a href="#quiet">Meetings</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/gouravkakkar/nudgie">GitHub</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div>
+      <span class="eyebrow">Free · macOS 14+ · Apple Silicon and Intel</span>
+      <h1>The break reminder that knows you're in a meeting.</h1>
+      <p class="lede">Nudgie sits in your menu bar and nudges you to rest your eyes, stand up, drink water, sit straight and stretch. It counts only the time you're actually at the Mac, and it goes quiet when your camera or mic is on.</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/gouravkakkar/nudgie/releases/latest/download/Nudgie.app.zip">⬇ Download for Mac</a>
+        <a class="btn ghost" href="https://github.com/gouravkakkar/nudgie">View the code</a>
+      </div>
+      <p class="fine">Version 0.1.0 · no account, no network, nothing leaves your Mac · free and source-available</p>
+    </div>
+
+    <div class="demo" aria-label="A live demo of a Nudgie reminder card">
+      <div class="card sticker" id="card" style="--accent:#3DF5B4">
+        <button class="closex" id="close" aria-label="Close without counting">✕</button>
+        <div class="ring">
+          <svg viewBox="0 0 104 104" aria-hidden="true">
+            <circle class="track" cx="52" cy="52" r="46"/>
+            <circle class="fill" id="ringfill" cx="52" cy="52" r="46" stroke-dasharray="289" stroke-dashoffset="0"/>
+          </svg>
+          <svg class="mascot pose-eyes" id="mascot" viewBox="0 0 80 80" aria-hidden="true">
+            <g class="legs"><rect class="leg-l" x="30" y="58" width="7" height="18" rx="3.5"/><rect class="leg-r" x="43" y="58" width="7" height="18" rx="3.5"/></g>
+            <ellipse class="body" cx="40" cy="40" rx="30" ry="27"/>
+            <g class="face">
+              <circle class="eye" cx="30" cy="36" r="8"/><circle class="eye" cx="50" cy="36" r="8"/>
+              <circle class="pupil" cx="31" cy="37" r="3.2"/><circle class="pupil" cx="51" cy="37" r="3.2"/>
+              <path class="mouth" id="mouth" d="M32 50 Q40 57 48 50"/>
+            </g>
+            <g class="glass"><rect x="62" y="44" width="14" height="19" rx="3" fill="#fff" stroke="#1B1B1F" stroke-width="2"/><rect x="64" y="52" width="10" height="9" rx="2" fill="#4DB8FF"/></g>
+          </svg>
+        </div>
+        <div>
+          <p class="headline" id="headline">Your eyeballs called. They want a vacation.</p>
+          <p class="instruction" id="instruction">Look at something 20 feet away for 20 seconds.</p>
+          <div class="actions">
+            <button class="pill" id="didit">Did it!</button>
+            <button class="pill ghost" id="snooze">5 more min</button>
+            <span class="timeleft" id="timeleft">0:20</span>
+          </div>
+        </div>
+        <div class="confetti" id="confetti" aria-hidden="true"></div>
+      </div>
+      <p class="caption">This is the real card, drawn in your browser. It never steals your keyboard focus on the Mac.</p>
+    </div>
+  </section>
+
+  <section id="nudges">
+    <h2>Five nudges. Turn off any of them.</h2>
+    <div class="nudges">
+      <div class="nudge sticker" style="background:#3DF5B4;color:#1B1B1F"><div class="emoji">👀</div><h3>Eyes</h3><p style="color:rgba(27,27,31,.75)">The 20-20-20 rule: look at something 20 feet away for 20 seconds.</p><span class="every">every 20 min</span></div>
+      <div class="nudge sticker" style="background:#4DB8FF;color:#1B1B1F"><div class="emoji">💧</div><h3>Water</h3><p style="color:rgba(27,27,31,.75)">A glass, not a sip. Plants get watered. So should you.</p><span class="every">every 45 min</span></div>
+      <div class="nudge sticker" style="background:#FF8C42;color:#1B1B1F"><div class="emoji">🚶</div><h3>Walk</h3><p style="color:rgba(27,27,31,.75)">Three minutes on your feet. Your chair needs some alone time.</p><span class="every">every 60 min</span></div>
+      <div class="nudge sticker" style="background:#FF6FB5;color:#1B1B1F"><div class="emoji">🪑</div><h3>Posture</h3><p style="color:rgba(27,27,31,.75)">Shoulders back, screen at eye level. You're doing the shrimp again.</p><span class="every">every 30 min</span></div>
+      <div class="nudge sticker" style="background:#FFE24D;color:#1B1B1F"><div class="emoji">🙆</div><h3>Stretch</h3><p style="color:rgba(27,27,31,.75)">Neck, shoulders, wrists. One minute, and your 5 pm self says thanks.</p><span class="every">every 60 min</span></div>
+    </div>
+  </section>
+
+  <section id="quiet">
+    <div class="two">
+      <div class="panel sticker">
+        <h2>Quiet when it matters.</h2>
+        <ul class="rules">
+          <li><span class="ic" style="background:#FF6FB5">📷</span><div><b>Camera or mic in use</b><span>Any app, any call. Nudgie only reads an "is this device busy" flag, so there is no permission prompt and no recording.</span></div></li>
+          <li><span class="ic" style="background:#4DB8FF">🖥</span><div><b>A browser or meeting app in front</b><span>Safari, Chrome, Arc, Firefox, Zoom, Teams, Slack, FaceTime, Webex, Discord. Edit the list.</span></div></li>
+          <li><span class="ic" style="background:#3DF5B4">⏱</span><div><b>Then a 30-second breather</b><span>Reminders that came due wait, and each one waits at most once. A long call earns you one eye break afterwards, not three.</span></div></li>
+        </ul>
+      </div>
+      <div class="panel sticker">
+        <h2>Counts real time, not clock time.</h2>
+        <p>Timers only run while you're using the Mac. Lock the screen, close the lid, or walk away for five minutes and everything resets. That was your break.</p>
+        <p>Coming back from lunch never triggers a pile of stale reminders, and a delayed card never fires the moment you sit down.</p>
+        <p class="fine">Optional work hours, a pause menu, and "take a break now" for when you don't want to wait.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="facts">
+      <div class="fact sticker"><h3>Private by design</h3><p>No account, no analytics, no network calls. Your settings live in your Mac's user defaults and nowhere else.</p></div>
+      <div class="fact sticker"><h3>Native, not a web page in a box</h3><p>Written in Swift for macOS. No Electron, no background helpers, no permission prompts. Roughly a hundredth the size.</p></div>
+      <div class="fact sticker"><h3>Free and source-available</h3><p>Use it at home or at work, read the code, change it, share it. Only the author may sell it (PolyForm Shield 1.0.0).</p></div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="panel sticker install">
+      <h2>Install in a minute.</h2>
+      <ol>
+        <li><a href="https://github.com/gouravkakkar/nudgie/releases/latest/download/Nudgie.app.zip">Download Nudgie.app.zip</a>, unzip it, and move <code>Nudgie.app</code> to Applications.</li>
+        <li><b>macOS 15 or newer:</b> open it, click <b>Done</b> on the "cannot verify" dialog, then go to <b>System Settings → Privacy &amp; Security</b>, scroll down, click <b>Open Anyway</b>, then <b>Open</b>.</li>
+        <li><b>macOS 14:</b> right-click <code>Nudgie.app</code> → <b>Open</b> → <b>Open</b>.</li>
+      </ol>
+      <p class="fine">Why the extra step? Nudgie isn't notarised yet (that needs a paid Apple developer account). You only do this once. If you prefer the terminal:</p>
+      <pre><code>xattr -d com.apple.quarantine /Applications/Nudgie.app</code></pre>
+      <p class="fine">Or build it yourself with Xcode 26: <code>git clone https://github.com/gouravkakkar/nudgie.git &amp;&amp; cd nudgie &amp;&amp; make install</code></p>
+    </div>
+  </section>
+
+  <section>
+    <p class="compare">Looking for a free alternative to LookAway (from $19) or Time Out's paid unlocks, or a native, lighter alternative to Stretchly? That's Nudgie. Free break reminder for Mac, 20-20-20 rule app, posture reminder, water reminder, stand-up reminder, all in one menu bar app.</p>
+  </section>
+
+  <footer>
+    <span>Made by <a href="https://github.com/gouravkakkar">Gourav Kakkar</a>. Nudgie is free and source-available under the <a href="https://github.com/gouravkakkar/nudgie/blob/main/LICENSE">PolyForm Shield License 1.0.0</a>.</span>
+    <span><a href="https://github.com/gouravkakkar/nudgie/issues">Report a bug</a> · <a href="https://github.com/gouravkakkar/nudgie/blob/main/docs/user-guide.md">User guide</a></span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const kinds = [
+    { key: 'eyes', accent: '#3DF5B4', seconds: 20, instruction: 'Look at something 20 feet away for 20 seconds.',
+      lines: ['Your eyeballs called. They want a vacation.', 'Stare at something 20 feet away. The wall counts.', 'Blink. Blink again. Now look far away.', 'Give the pixels a break. Find a window.'] },
+    { key: 'water', accent: '#4DB8FF', seconds: 12, instruction: 'Drink a glass of water.',
+      lines: ['Hydrate or dydrate.', 'Plants get watered. So should you.', 'Sip happens.', 'Your brain is 75% water. Top it up.'] },
+    { key: 'walk', accent: '#FF8C42', seconds: 15, instruction: 'Stand up and walk for a few minutes.',
+      lines: ['Legs. Remember those? Take them for a spin.', 'Go touch grass, or at least the kitchen.', 'Your chair needs some alone time.', 'A short lap now beats a stiff back later.'] },
+    { key: 'posture', accent: '#FF6FB5', seconds: 12, instruction: 'Sit up, shoulders back, screen at eye level.',
+      lines: ["You're doing the shrimp again.", "Shoulders down. Chin up. You've got this.", "Sit like someone's taking your photo.", 'Unfold yourself. Slowly. Like a lawn chair.'] },
+    { key: 'stretch', accent: '#FFE24D', seconds: 15, instruction: 'Stretch your neck, shoulders and wrists.',
+      lines: ["Reach for the ceiling. It's not going anywhere.", 'Roll those shoulders like you mean it.', 'Wrists, neck, shoulders. Go.', 'Stretch now, thank yourself at 5 pm.'] },
+  ];
+  const card = document.getElementById('card');
+  const mascot = document.getElementById('mascot');
+  const ring = document.getElementById('ringfill');
+  const headline = document.getElementById('headline');
+  const instruction = document.getElementById('instruction');
+  const timeleft = document.getElementById('timeleft');
+  const mouth = document.getElementById('mouth');
+  const confetti = document.getElementById('confetti');
+  const CIRC = 289;
+  let index = 0, left = 0, total = 0, timer = null, lastLine = {};
+
+  function pickLine(kind) {
+    let i = Math.floor(Math.random() * kind.lines.length);
+    if (i === lastLine[kind.key]) i = (i + 1) % kind.lines.length;
+    lastLine[kind.key] = i;
+    return kind.lines[i];
+  }
+  function fmt(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+
+  function show(i) {
+    const kind = kinds[i];
+    card.style.setProperty('--accent', kind.accent);
+    mascot.setAttribute('class', 'mascot pose-' + kind.key);
+    mouth.setAttribute('d', kind.key === 'posture' ? 'M33 52 L47 52' : 'M32 50 Q40 57 48 50');
+    headline.textContent = pickLine(kind);
+    instruction.textContent = kind.instruction;
+    total = left = kind.seconds;
+    timeleft.textContent = fmt(left);
+    ring.style.transition = 'none';
+    ring.setAttribute('stroke-dashoffset', '0');
+    card.classList.remove('settled');
+    requestAnimationFrame(() => {
+      ring.style.transition = '';
+      card.classList.add('settled');
+    });
+    clearInterval(timer);
+    timer = setInterval(tick, 1000);
+  }
+  function tick() {
+    left -= 1;
+    timeleft.textContent = fmt(Math.max(0, left));
+    ring.setAttribute('stroke-dashoffset', String(CIRC * (1 - Math.max(0, left) / total)));
+    if (left <= 0) done();
+  }
+  function next() { index = (index + 1) % kinds.length; show(index); }
+  function done() {
+    clearInterval(timer);
+    burst();
+    setTimeout(next, reduce ? 200 : 900);
+  }
+  function burst() {
+    if (reduce) return;
+    const colors = kinds.map(k => k.accent);
+    confetti.innerHTML = '';
+    for (let n = 0; n < 28; n++) {
+      const p = document.createElement('i');
+      const angle = Math.random() * Math.PI * 2, dist = 60 + Math.random() * 90;
+      p.style.background = colors[Math.floor(Math.random() * colors.length)];
+      p.style.transform = 'translate(-50%,-50%)';
+      confetti.appendChild(p);
+      p.animate([
+        { transform: 'translate(-50%,-50%) rotate(0deg)', opacity: 1 },
+        { transform: `translate(${Math.cos(angle) * dist - 50}%, ${Math.sin(angle) * dist + 30}px) rotate(${(Math.random() - 0.5) * 720}deg)`, opacity: 0 }
+      ], { duration: 800, easing: 'ease-out', fill: 'forwards' });
+    }
+  }
+  document.getElementById('didit').addEventListener('click', done);
+  document.getElementById('snooze').addEventListener('click', () => { clearInterval(timer); next(); });
+  document.getElementById('close').addEventListener('click', () => { clearInterval(timer); next(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearInterval(timer); else { clearInterval(timer); timer = setInterval(tick, 1000); } });
+  show(0);
+})();
+</script>
+</body>
+</html>
