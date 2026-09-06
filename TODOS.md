@@ -39,3 +39,9 @@ Deferred work with enough context to pick up cold. Added during the plan enginee
 - **Cons:** No public API says "someone is capturing my screen"; heuristics (frontmost presentation app in full screen via `CGWindowListCopyWindowInfo`) are approximate.
 - **Context:** Add as a third rule in `QuietPolicy` with its own toggle.
 - **Depends on:** nothing.
+
+## Keep tests out of ~/Library/Preferences entirely
+- **What:** Put a tiny `KeyValueStore` protocol behind `Store` with an in-memory fake for tests, instead of real `UserDefaults(suiteName:)` suites.
+- **Why:** The final review found the suite leaving `nudgie.tests.*.plist` files behind; `TestDefaults` now removes them, but `cfprefsd` flushes asynchronously, so a stray file after a run is still possible in theory.
+- **Context:** `Tests/NudgieAppTests/TestDefaults.swift`, `Sources/Nudgie/Persistence/Store.swift`. Added 2026-09-07 from the whole-branch review.
+- **Depends on:** nothing.
