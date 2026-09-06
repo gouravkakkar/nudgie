@@ -22,6 +22,16 @@ public struct ReminderSetting: Codable, Equatable, Sendable {
     public var intervalSeconds: Double { Double(intervalMinutes) * 60 }
 }
 
+/// Mirrors `ReminderSetting` with every field optional, so a hand-edited or partial reminder
+/// object in the settings file (missing `intervalMinutes` or `breakSeconds`) decodes instead of
+/// throwing `keyNotFound`. Merged against `ReminderSetting.default(for:)` in
+/// `NudgieSettings.init(from:)`.
+private struct PartialReminderSetting: Decodable {
+    var isEnabled: Bool?
+    var intervalMinutes: Int?
+    var breakSeconds: Int?
+}
+
 /// Optional window outside which Nudgie does nothing. Minutes are from local midnight.
 /// `weekdays` uses Calendar's numbering: 1 = Sunday ... 7 = Saturday.
 public struct WorkHours: Codable, Equatable, Sendable {
@@ -36,6 +46,18 @@ public struct WorkHours: Codable, Equatable, Sendable {
         self.startMinute = startMinute
         self.endMinute = endMinute
         self.weekdays = weekdays
+    }
+
+    /// Missing keys fall back to defaults so a hand-edited or partial `workHours` object
+    /// (e.g. `{"isEnabled":true}` with no `startMinute`) still decodes instead of throwing
+    /// `keyNotFound` and losing the whole settings file.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = WorkHours()
+        isEnabled = try c.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? d.isEnabled
+        startMinute = try c.decodeIfPresent(Int.self, forKey: .startMinute) ?? d.startMinute
+        endMinute = try c.decodeIfPresent(Int.self, forKey: .endMinute) ?? d.endMinute
+        weekdays = try c.decodeIfPresent(Set<Int>.self, forKey: .weekdays) ?? d.weekdays
     }
 
     /// True when Nudgie may count and show reminders at `date`.
@@ -110,9 +132,25 @@ public struct NudgieSettings: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = NudgieSettings.defaults
+
+        // Each reminder object is decoded field-by-field so a partial entry (e.g. only
+        // "isEnabled" present) falls back to that kind's own defaults instead of throwing
+        // `keyNotFound`, which would otherwise sink the whole settings file to nil.
+        let decodedReminders: [ReminderKind: ReminderSetting]
+        if let partials = try c.decodeIfPresent([ReminderKind: PartialReminderSetting].self, forKey: .reminders) {
+            decodedReminders = Dictionary(uniqueKeysWithValues: partials.map { kind, partial in
+                let kindDefault = ReminderSetting.default(for: kind)
+                return (kind, ReminderSetting(
+                    isEnabled: partial.isEnabled ?? kindDefault.isEnabled,
+                    intervalMinutes: partial.intervalMinutes ?? kindDefault.intervalMinutes,
+                    breakSeconds: partial.breakSeconds ?? kindDefault.breakSeconds))
+            })
+        } else {
+            decodedReminders = d.reminders
+        }
+
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? d.version
-        reminders = (try c.decodeIfPresent([ReminderKind: ReminderSetting].self, forKey: .reminders) ?? d.reminders)
-            .mapValues(Self.clamped)
+        reminders = decodedReminders.mapValues(Self.clamped)
         quietOnCameraOrMic = try c.decodeIfPresent(Bool.self, forKey: .quietOnCameraOrMic) ?? d.quietOnCameraOrMic
         quietOnQuietApps = try c.decodeIfPresent(Bool.self, forKey: .quietOnQuietApps) ?? d.quietOnQuietApps
         quietAppPrefixes = try c.decodeIfPresent([String].self, forKey: .quietAppPrefixes) ?? d.quietAppPrefixes

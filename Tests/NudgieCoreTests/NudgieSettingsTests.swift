@@ -86,4 +86,26 @@ import Testing
         let w = WorkHours(isEnabled: true, startMinute: 18 * 60, endMinute: 9 * 60, weekdays: [2])
         #expect(!w.allows(TestClock.date(2026, 9, 7, 10, 0), calendar: TestClock.utc))
     }
+
+    @Test func partialReminderObjectFallsBackToKindDefaults() {
+        // A hand-edited or corrupted settings file may have a reminder object missing
+        // "intervalMinutes"/"breakSeconds". That must fall back to the kind's own defaults
+        // instead of throwing keyNotFound and losing the whole settings file.
+        let json = #"{"reminders":{"eyes":{"isEnabled":false}}}"#
+        let s = NudgieSettings.decode(Data(json.utf8))
+        #expect(s?.reminder(.eyes).isEnabled == false)
+        #expect(s?.reminder(.eyes).intervalMinutes == 20)
+        #expect(s?.reminder(.eyes).breakSeconds == 20)
+        #expect(s?.reminder(.water) == ReminderSetting.default(for: .water))
+    }
+
+    @Test func partialWorkHoursFallsBackToDefaults() {
+        // Same idea for workHours: a missing "startMinute" must not sink the whole decode.
+        let json = #"{"workHours":{"isEnabled":true}}"#
+        let s = NudgieSettings.decode(Data(json.utf8))
+        #expect(s?.workHours.isEnabled == true)
+        #expect(s?.workHours.startMinute == 540)
+        #expect(s?.workHours.endMinute == 1080)
+        #expect(s?.workHours.weekdays == [2, 3, 4, 5, 6])
+    }
 }
