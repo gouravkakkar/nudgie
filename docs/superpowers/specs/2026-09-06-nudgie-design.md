@@ -371,3 +371,24 @@ Focus rule).
 3. Notarisation: do you have or want an Apple Developer account? Without it
    users see a Gatekeeper warning on first launch.
 4. Default intervals in section 6. Easy to change later in Settings anyway.
+
+## 17. Deviations recorded during implementation (2026-09-07)
+
+- **No "About Nudgie" menu item.** The General tab shows the version and
+  licence line instead. Add the menu item if anyone asks.
+- **Licence notice wording.** The file starts with the licence's own form,
+  `Required Notice: Copyright 2026 Gourav Kakkar (https://github.com/gouravkakkar/nudgie)`,
+  because the licence requires that exact prefix to travel with copies. The
+  section 4 wording lives in the bundle's copyright string.
+- **Front app is polled once a second** rather than observed through app
+  switch notifications: at most one second of lag, far simpler wiring.
+- **An "Away" status line** was added to the menu for locked, asleep or idle.
+- **✕ on the card restarts that reminder's timer** (counts nothing) rather
+  than leaving it due, so the same card does not return 30 seconds later.
+- **"Take a break now" is disabled** while paused, off the clock or away.
+- **Card width is 360 pt**, not 340, so the snooze pill never truncates.
+- **`--demo <kind>` is a forced card**: it shows even when the Mac is idle or
+  in a meeting (silently), and shows nothing for a disabled reminder.
+- **Focus / Do Not Disturb detection** is out (section 8) and the App Nap
+  guard (`NSAppSleepDisabled`, a process activity) is in, so the heartbeat
+  keeps its one-second cadence.
