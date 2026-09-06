@@ -72,13 +72,13 @@ final class Coordinator {
     /// Keeps the heartbeat's Timer from being throttled by App Nap while Nudgie has no window up.
     private var activityToken: NSObjectProtocol?
     /// Injectable so tests can stay silent instead of playing real system sounds.
-    @ObservationIgnored private var playSound: (String) -> Void
+    @ObservationIgnored private var playSound: @MainActor (String) -> Void
 
     init(store: Store = Store(),
          activity: any ActivitySampling = ActivityProbe(),
          quiet: any QuietSampling = QuietProbe(),
          clock: @escaping () -> Date = { Date() },
-         playSound: @escaping (String) -> Void = Sound.play) {
+         playSound: @escaping @MainActor (String) -> Void = Sound.play) {
         self.store = store
         self.activityProbe = activity
         self.quietProbe = quiet
