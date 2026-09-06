@@ -73,11 +73,12 @@ Sources/Nudgie/
 Tests/NudgieCoreTests/
   ReminderKindTests.swift, NudgieSettingsTests.swift, QuietPolicyTests.swift,
   TimerEngineTests.swift, CardPlannerTests.swift, CopyPickerTests.swift, DailyStatsTests.swift
+LICENSE                                    PolyForm Shield 1.0.0 + Required Notice (created in Task 13, shipped inside the bundle)
 Resources/Info.plist                       LSUIElement etc.
 Resources/Nudgie.icns                      generated once by tools/make-icon.swift, committed
-tools/make-app.sh                          assemble + ad-hoc sign build/Nudgie.app
+tools/make-app.sh                          universal build, assemble + ad-hoc sign build/Nudgie.app
 tools/make-icon.swift                      render mascot -> .icns
-docs/user-guide.md, docs/qa-checklist.md, README.md, LICENSE, CONTRIBUTING.md, CHANGELOG.md
+docs/user-guide.md, docs/qa-checklist.md, README.md, CONTRIBUTING.md, CHANGELOG.md
 .github/workflows/ci.yml
 ```
 
@@ -882,7 +883,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Produces: `public struct TimerEngine: Equatable, Sendable` with
   - `init(settings:)`, `private(set) var settings`, `private(set) var activeSeconds: [ReminderKind: Double]`, `private(set) var pending: [ReminderKind]`, `private(set) var manualPauseUntil: Date?`
   - `enum TickOutcome: Equatable, Sendable { case counting, paused(until: Date), offTheClock, away, resetAfterAway }`
-  - `@discardableResult mutating func tick(now: Date, activity: ActivityState, elapsed: Double = 1, calendar: Calendar = .current) -> TickOutcome`
+  - `@discardableResult mutating func tick(now: Date, activity: ActivityState, calendar: Calendar = .current) -> TickOutcome` (elapsed time is measured from the previous tick and capped at `maxElapsedSeconds = 2`; the first tick counts 1 s)
   - `mutating func markDone(_ kinds: [ReminderKind])`, `mutating func snooze(_ kinds: [ReminderKind])`, `mutating func triggerNow(_ kind: ReminderKind)`, `mutating func resetAll()`, `mutating func pause(until: Date)`, `mutating func resume()`, `mutating func updateSettings(_:)`
   - `func isPaused(at: Date) -> Bool`, `func secondsUntilDue(_ kind: ReminderKind) -> Double?` (nil when disabled, 0 when pending)
 
@@ -890,7 +891,9 @@ Behaviour rules (from spec sections 7 and 8):
 1. Manual pause and off-the-clock both stop counting **and reset everything**, so resuming never fires a stale reminder.
 2. Away (locked, asleep, or idle ≥ 300 s) stops counting. Once the away stretch has lasted 300 s, reset everything exactly once (`.resetAfterAway`). Idle time that already elapsed counts toward the stretch, so "idle 300 s" resets immediately while "locked 10 s ago" resets 290 s later.
 2b. A gap of 300 s or more between two ticks means the process was suspended (the Mac slept). No tick observed the away stretch, so the gap itself resets everything. Without this, a laptop closed overnight would wake with yesterday's timers.
-3. While active, every enabled reminder that is not already pending gains `elapsed` seconds; reaching its interval appends it to `pending` once.
+2c. When the user comes back (first active tick after an away stretch), check whether the whole stretch, including any sleep gap inside it, reached 300 s before forgetting it. One minute locked plus four minutes asleep is a five-minute break.
+3. While active, every enabled reminder that is not already pending gains the measured seconds since the previous tick, capped at 2 s so a delayed heartbeat or a forward clock jump cannot add minutes at once (a backward jump adds 0). Reaching its interval appends it to `pending` once.
+3b. Snooze sets the accumulator to `interval − snooze`, which may go negative: a 5-minute reminder snoozed for 30 minutes comes back after 30 minutes, not 5.
 4. Quiet mode is not the engine's business. Counting continues in meetings; the planner decides when to show.
 
 - [ ] **Step 1: Write the failing tests**
@@ -993,6 +996,32 @@ import Testing
         #expect(e.pending == [.eyes])
     }
 
+    @Test func lockThenSleepThenWakeStillResets() {
+        // Locked 90 s (ticks), then asleep 4 min (no ticks, gap under the threshold on its own),
+        // then unlocked and active: the whole stretch is 330 s, so it resets.
+        var e = TimerEngine(settings: .defaults)
+        var now = Self.start
+        Self.run(&e, from: &now, seconds: 15 * 60)
+        Self.run(&e, from: &now, seconds: 90) { i in ActivityState(idleSeconds: Double(i), isLocked: true) }
+        now = now.addingTimeInterval(4 * 60)
+        #expect(e.tick(now: now, activity: ActivityState(), calendar: TestClock.utc) == .resetAfterAway)
+        #expect(e.secondsUntilDue(.eyes) == 1200)
+    }
+
+    @Test func delayedHeartbeatCountsAtMostTwoSeconds() {
+        var e = TimerEngine(settings: .defaults)
+        var now = Self.start
+        Self.run(&e, from: &now, seconds: 60)
+        now = now.addingTimeInterval(10)           // the timer fired late
+        e.tick(now: now, activity: ActivityState(), calendar: TestClock.utc)
+        #expect(e.secondsUntilDue(.eyes) == 1200 - 60 - 2)
+        e.tick(now: now, activity: ActivityState(), calendar: TestClock.utc)   // same instant again
+        #expect(e.secondsUntilDue(.eyes) == 1200 - 60 - 2)
+        now = now.addingTimeInterval(-30)          // clock jumped backward
+        e.tick(now: now, activity: ActivityState(), calendar: TestClock.utc)
+        #expect(e.secondsUntilDue(.eyes) == 1200 - 60 - 2)
+    }
+
     @Test func eachReminderPendsOnceInDueOrder() {
         var e = TimerEngine(settings: .defaults)
         var now = Self.start
@@ -1020,6 +1049,31 @@ import Testing
         #expect(e.secondsUntilDue(.eyes) == 300)
         Self.run(&e, from: &now, seconds: 300)
         #expect(e.pending == [.eyes])
+    }
+
+    @Test func snoozeLongerThanIntervalWaitsTheFullSnooze() {
+        var s = NudgieSettings.defaults
+        s.setReminder(ReminderSetting(intervalMinutes: 5, breakSeconds: 0), for: .water)
+        s.snoozeMinutes = 30
+        var e = TimerEngine(settings: s)
+        e.triggerNow(.water)
+        e.snooze([.water])
+        #expect(e.secondsUntilDue(.water) == 30 * 60)
+        var now = Self.start
+        Self.run(&e, from: &now, seconds: 30 * 60 - 1)
+        #expect(!e.pending.contains(.water))
+        Self.run(&e, from: &now, seconds: 1)
+        #expect(e.pending.contains(.water))
+    }
+
+    @Test func snoozeEqualToIntervalComesBackAfterOneInterval() {
+        var s = NudgieSettings.defaults
+        s.setReminder(ReminderSetting(intervalMinutes: 5, breakSeconds: 0), for: .water)
+        s.snoozeMinutes = 5
+        var e = TimerEngine(settings: s)
+        e.triggerNow(.water)
+        e.snooze([.water])
+        #expect(e.secondsUntilDue(.water) == 300)
     }
 
     @Test func offTheClockResetsAndDoesNotCount() {
@@ -1122,6 +1176,8 @@ public struct TimerEngine: Equatable, Sendable {
     private var didResetForThisAway = false
     /// When the previous tick happened. A long gap means the Mac was asleep.
     private var lastTickAt: Date?
+    /// A late heartbeat or a forward clock jump can add at most this much per tick.
+    public static let maxElapsedSeconds: Double = 2
 
     public init(settings: NudgieSettings) {
         self.settings = settings
@@ -1130,12 +1186,21 @@ public struct TimerEngine: Equatable, Sendable {
     // MARK: Heartbeat
 
     @discardableResult
-    public mutating func tick(now: Date, activity: ActivityState, elapsed: Double = 1,
+    public mutating func tick(now: Date, activity: ActivityState,
                               calendar: Calendar = .current) -> TickOutcome {
         defer { lastTickAt = now }
+        // Seconds since the previous tick, clamped: never negative, never more than 2. First tick counts 1.
+        let elapsed = lastTickAt.map { min(max(now.timeIntervalSince($0), 0), Self.maxElapsedSeconds) } ?? 1
+
         if let until = manualPauseUntil {
             if now < until { return .paused(until: until) }
             manualPauseUntil = nil
+        }
+        guard settings.workHours.allows(now, calendar: calendar) else {
+            resetAll()
+            awayStartedAt = nil
+            didResetForThisAway = false
+            return .offTheClock
         }
         if let last = lastTickAt, now.timeIntervalSince(last) >= ActivityState.awayThresholdSeconds {
             // No ticks for 5+ minutes: the process was suspended (sleep). That gap was a break.
@@ -1143,10 +1208,6 @@ public struct TimerEngine: Equatable, Sendable {
             awayStartedAt = nil
             didResetForThisAway = false
             return .resetAfterAway
-        }
-        guard settings.workHours.allows(now, calendar: calendar) else {
-            resetAll()
-            return .offTheClock
         }
         if activity.isAway {
             // Idle time already elapsed counts toward the away stretch.
@@ -1161,8 +1222,16 @@ public struct TimerEngine: Equatable, Sendable {
             }
             return .away
         }
-        awayStartedAt = nil
-        didResetForThisAway = false
+        // Back at the keyboard. Did the whole away stretch (ticks plus any sleep gap) reach the threshold?
+        if let startedAt = awayStartedAt {
+            awayStartedAt = nil
+            let wasReset = didResetForThisAway
+            didResetForThisAway = false
+            if !wasReset, now.timeIntervalSince(startedAt) >= ActivityState.awayThresholdSeconds {
+                resetAll()
+                return .resetAfterAway
+            }
+        }
         for kind in settings.enabledKinds where !pending.contains(kind) {
             let total = (activeSeconds[kind] ?? 0) + elapsed
             activeSeconds[kind] = total
@@ -1180,10 +1249,11 @@ public struct TimerEngine: Equatable, Sendable {
         pending.removeAll { kinds.contains($0) }
     }
 
+    /// May leave the accumulator negative on purpose: the reminder waits the full snooze.
     public mutating func snooze(_ kinds: [ReminderKind]) {
         let snoozeSeconds = Double(settings.snoozeMinutes) * 60
         for kind in kinds {
-            activeSeconds[kind] = max(0, settings.reminder(kind).intervalSeconds - snoozeSeconds)
+            activeSeconds[kind] = settings.reminder(kind).intervalSeconds - snoozeSeconds
         }
         pending.removeAll { kinds.contains($0) }
     }
@@ -1237,7 +1307,7 @@ public struct TimerEngine: Equatable, Sendable {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: all pass (32 + 16 = 48). If `idleReachingFiveMinutesResetsOnce` is off by one, check that the reset compares with `>=` and that `alreadyAway` uses the idle seconds from the first away tick.
+Expected: all pass (32 + 20 = 52). If `idleReachingFiveMinutesResetsOnce` is off by one, check that the reset compares with `>=` and that `alreadyAway` uses the idle seconds from the first away tick.
 
 - [ ] **Step 5: Commit**
 
@@ -1430,7 +1500,7 @@ public struct CardPlanner: Equatable, Sendable {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: all pass (48 + 10 = 58).
+Expected: all pass (52 + 10 = 62).
 
 - [ ] **Step 5: Commit**
 
@@ -1666,7 +1736,7 @@ public struct DailyStats: Codable, Equatable, Sendable {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: all pass (58 + 9 = 67).
+Expected: all pass (62 + 9 = 71).
 
 - [ ] **Step 5: Commit**
 
@@ -1691,7 +1761,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Produces (all main-actor, the target's default isolation):
   - `protocol ActivitySampling { func sample() -> ActivityState }` and `protocol QuietSampling { func sample(now: Date) -> QuietState }` (so the coordinator can be tested with fakes)
   - `final class ActivityProbe: ActivitySampling { init(); func sample() -> ActivityState }`
-  - `final class QuietProbe: QuietSampling { init(); func sample(now: Date) -> QuietState; static func appName(forBundleID: String) -> String? }`
+  - `final class QuietProbe: QuietSampling { init(); func sample(now: Date) -> QuietState; static func appName(forBundleID: String) -> String? }`. The microphone check asks "is any *process* capturing input" (`kAudioProcessPropertyIsRunningInput`, macOS 14.2+, verified on this Mac: 26 process objects enumerate cleanly) and only falls back to the device-wide "running somewhere" flag on 14.0/14.1. The device flag alone would report music playing through AirPods as mic use, because AirPods are one duplex device.
   - `struct Store { init(defaults: UserDefaults = .standard); func loadSettings() -> NudgieSettings; func save(_: NudgieSettings); func loadStats() -> DailyStats; func save(_: DailyStats) }`
   - `final class AppDelegate: NSObject, NSApplicationDelegate` (Task 9 adds the coordinator to it)
   - `struct NudgieApp: App`
@@ -1824,15 +1894,17 @@ final class QuietProbe: QuietSampling {
 
     private var cachedCameraBusy = false
     private var cachedMicBusy = false
-    private var lastDeviceCheck = Date.distantPast
+    /// Uptime, not wall clock, so a clock change cannot freeze the cadence.
+    private var lastDeviceCheckUptime: TimeInterval = -.infinity
 
     init() {}
 
     func sample(now: Date = Date()) -> QuietState {
-        if now.timeIntervalSince(lastDeviceCheck) >= Self.deviceCheckInterval {
+        let uptime = ProcessInfo.processInfo.systemUptime
+        if uptime - lastDeviceCheckUptime >= Self.deviceCheckInterval {
             cachedCameraBusy = Self.isAnyCameraRunning()
             cachedMicBusy = Self.isAnyMicRunning()
-            lastDeviceCheck = now
+            lastDeviceCheckUptime = uptime
         }
         return QuietState(cameraBusy: cachedCameraBusy,
                           micBusy: cachedMicBusy,
@@ -1879,7 +1951,47 @@ final class QuietProbe: QuietSampling {
 
     // MARK: Microphone (CoreAudio)
 
+    /// Prefer the per-process "is running input" flag (macOS 14.2+). Fall back to the
+    /// device-wide flag on older systems, accepting its duplex-device false positives there.
     static func isAnyMicRunning() -> Bool {
+        if #available(macOS 14.2, *) {
+            return isAnyProcessCapturingInput()
+        }
+        return isAnyInputDeviceRunning()
+    }
+
+    @available(macOS 14.2, *)
+    static func isAnyProcessCapturingInput() -> Bool {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyProcessObjectList,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == 0 else {
+            logOnce(&loggedMicFailure, "audio process list size query failed")
+            return false
+        }
+        var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &ids) == 0 else {
+            logOnce(&loggedMicFailure, "audio process list query failed")
+            return false
+        }
+        for id in ids {
+            var runningAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioProcessPropertyIsRunningInput,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain)
+            var running: UInt32 = 0
+            var runningSize = UInt32(MemoryLayout<UInt32>.size)
+            if AudioObjectGetPropertyData(id, &runningAddress, 0, nil, &runningSize, &running) == 0, running != 0 {
+                return true
+            }
+        }
+        return false
+    }
+
+    static func isAnyInputDeviceRunning() -> Bool {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDevices,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -2043,7 +2155,7 @@ if CommandLine.arguments.contains("--probe") {
 - [ ] **Step 5: Test, build and verify against the real OS**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: all pass (67 − 1 smoke + 4 store = 70).
+Expected: all pass (71 − 1 smoke + 4 store = 74).
 
 Run: `swift build 2>&1 | tail -1`
 Expected: `Build complete!`
@@ -2054,7 +2166,7 @@ Run (prints 4 lines then stops):
 ```
 Expected: lines like `idle    0.4s  locked false  asleep false  camera false  mic false  front dev.warp.Warp-Stable` with a growing idle value.
 
-Then, with the probe running in one terminal, open **Photo Booth** and confirm `camera true`; quit it and confirm `camera false`. Start a **FaceTime** call preview (or a browser tab on https://webcamtests.com) and confirm `mic true`. Click into Safari and confirm `front com.apple.Safari`. Lock the screen (Ctrl-Cmd-Q), unlock, and confirm the log shows `locked true` lines while locked. Record the results in the commit message body.
+Then, with the probe running in one terminal, open **Photo Booth** and confirm `camera true`; quit it and confirm `camera false`. Open **Voice Memos** and press record: confirm `mic true`; stop: `mic false`. Play music through AirPods or any headset with a mic and confirm `mic false` stays false (the per-process check must not count playback). Click into Safari and confirm `front com.apple.Safari`. Lock the screen (Ctrl-Cmd-Q), unlock, and confirm the log shows `locked true` lines while locked. Record the results in the commit message body.
 
 Run the app itself: `swift run Nudgie` shows a face icon in the menu bar with a Quit item and no Dock icon. Quit it.
 
@@ -2083,9 +2195,9 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Consumes: `ActivitySampling`, `QuietSampling`, `ActivityProbe`, `QuietProbe`, `Store` (Task 8); `TimerEngine`, `CardPlanner`, `CopyPicker`, `DailyStats`, `QuietPolicy` (Core).
 - Produces:
   - `enum EngineStatus: Equatable { case counting, quiet(QuietReason), paused(until: Date), offTheClock, away; var label: String }`
-  - `struct CardPresentation: Equatable { let plan: CardPlan; let headline: String; let startedAt: Date; let isForced: Bool; var secondsLeft: Int; var accentKind: ReminderKind }`
+  - `struct CardPresentation: Equatable { let id: UUID; let plan: CardPlan; let headline: String; let startedAt: Date; let isForced: Bool; var secondsLeft: Int; var accentKind: ReminderKind }`
   - `enum IconState: Equatable { case normal, blink, shh, zzz }`
-  - `@Observable final class Coordinator` with `init(store:activity:quiet:clock:)` (all defaulted to the real thing), `settings`, `card: CardPresentation?`, `status`, `iconState`, `now`, `nextUp: [NextUp]`, `today: DailyStats.DayCount`, `onShowCard: (() -> Void)?`, `onHideCard: (() -> Void)?`, and methods `start(demo:)`, `tick()`, `didIt()`, `snooze()`, `close()`, `takeBreakNow()`, `pause(hours:)`, `pauseUntilTomorrow()`, `resume()`, `updateSettings(_:)`, `resetSettingsToDefaults()`, plus pure helpers `static func status(outcome:quiet:)` and `static func icon(for:tick:)`.
+  - `@Observable final class Coordinator` with `init(store:activity:quiet:clock:)` (all defaulted to the real thing), `settings`, `card: CardPresentation?`, `status`, `iconState`, `now`, `nextUp: [NextUp]`, `today: DailyStats.DayCount`, `onShowCard: (() -> Void)?`, `onHideCard: (() -> Void)?`, and methods `start(demo:)`, `tick()`, `didIt(cardID: UUID? = nil)` (a stale id is ignored), `snooze()`, `close()`, `takeBreakNow()`, `pause(hours:)`, `pauseUntilTomorrow()`, `resume()`, `updateSettings(_:)`, `resetSettingsToDefaults()`, plus pure helpers `static func status(outcome:quiet:)` and `static func icon(for:tick:)`.
   - `AppDelegate.coordinator` (the single instance), `AppDelegate.demoKind() -> ReminderKind?`.
 
 - [ ] **Step 1: Write the failing coordinator tests**
@@ -2112,7 +2224,8 @@ import NudgieCore
 }
 
 @MainActor @Suite struct CoordinatorTests {
-    struct Rig {
+    /// Nested types do not inherit the suite's @MainActor, so mark it explicitly.
+    @MainActor struct Rig {
         let coordinator: Coordinator
         let activity: FakeActivity
         let quiet: FakeQuiet
@@ -2135,6 +2248,43 @@ import NudgieCore
         let coordinator = Coordinator(store: Store(defaults: defaults), activity: activity, quiet: quiet,
                                       clock: { clock.now })
         return Rig(coordinator: coordinator, activity: activity, quiet: quiet, clock: clock)
+    }
+
+    @Test func lockHidesTheCardAndNothingNewShowsWhileLocked() {
+        let rig = makeRig()
+        rig.advance(20 * 60)
+        #expect(rig.coordinator.card != nil)
+        rig.activity.state = ActivityState(idleSeconds: 1, isLocked: true)
+        rig.advance(1)
+        #expect(rig.coordinator.card == nil)
+        rig.advance(60)                               // pending eyes must not become a card while locked
+        #expect(rig.coordinator.card == nil)
+        rig.activity.state = ActivityState()
+        rig.advance(1)                                // back at the keyboard: the breathing gap passed while locked
+        #expect(rig.coordinator.card?.plan.kinds == [.eyes])
+    }
+
+    @Test func disablingAReminderRemovesItFromTheCard() {
+        let rig = makeRig()
+        rig.advance(30 * 60)                          // eyes card came and finished at 20:20; posture card is up now
+        #expect(rig.coordinator.card?.plan.kinds == [.posture])
+        var s = rig.coordinator.settings
+        s.setReminder(ReminderSetting(isEnabled: false, intervalMinutes: 30, breakSeconds: 0), for: .posture)
+        rig.coordinator.updateSettings(s)
+        #expect(rig.coordinator.card == nil)
+        #expect(rig.coordinator.today.taken == 1)     // only the eyes card that ran its ring down
+    }
+
+    @Test func didItIgnoresAStaleCardID() {
+        let rig = makeRig()
+        rig.advance(20 * 60)
+        let stale = UUID()
+        rig.coordinator.didIt(cardID: stale)
+        #expect(rig.coordinator.card != nil)
+        #expect(rig.coordinator.today.taken == 0)
+        rig.coordinator.didIt(cardID: rig.coordinator.card!.id)
+        #expect(rig.coordinator.card == nil)
+        #expect(rig.coordinator.today.taken == 1)
     }
 
     @Test func statusMapping() {
@@ -2248,6 +2398,7 @@ enum EngineStatus: Equatable {
 
 /// The card currently on screen.
 struct CardPresentation: Equatable {
+    let id: UUID
     let plan: CardPlan
     let headline: String
     let startedAt: Date
@@ -2300,8 +2451,11 @@ final class Coordinator {
         self.activityProbe = activity
         self.quietProbe = quiet
         self.clock = clock
-        settings = store.loadSettings()
-        engine = TimerEngine(settings: settings)
+        // @Observable turns `settings` into an accessor, so it cannot be read until every
+        // stored property is initialised. Go through a local.
+        let loaded = store.loadSettings()
+        settings = loaded
+        engine = TimerEngine(settings: loaded)
         stats = store.loadStats()
     }
 
@@ -2331,10 +2485,12 @@ final class Coordinator {
         case .counting, .away: false
         case .paused, .offTheClock, .resetAfterAway: true
         }
+        // Locked or asleep: nobody is looking. Hide any card (it stays pending) and show nothing new.
+        let screenGone = activity.isLocked || activity.isAsleep
 
         if let current = card {
             // A meeting hides a scheduled card (it stays pending); a forced card stays up.
-            if engineStopped || (quietReason != nil && !current.isForced) {
+            if engineStopped || screenGone || (quietReason != nil && !current.isForced) {
                 hideCard()
                 return
             }
@@ -2342,14 +2498,15 @@ final class Coordinator {
             let left = max(0, current.plan.countdownSeconds - elapsed)
             card?.secondsLeft = left
             if left == 0 { didIt() }   // finishing the countdown counts as taking the break
-        } else if let plan = planner.plan(pending: engine.pending, settings: settings, now: now) {
+        } else if !activity.isAway,
+                  let plan = planner.plan(pending: engine.pending, settings: settings, now: now) {
             show(plan)
         }
     }
 
     private func show(_ plan: CardPlan, forced: Bool = false) {
         let headline = copy.line(for: plan.kinds[0])
-        card = CardPresentation(plan: plan, headline: headline, startedAt: now, isForced: forced,
+        card = CardPresentation(id: UUID(), plan: plan, headline: headline, startedAt: now, isForced: forced,
                                 secondsLeft: plan.countdownSeconds)
         log("show \(plan.kinds.map(\.rawValue)) for \(plan.countdownSeconds)s")
         onShowCard?()
@@ -2365,8 +2522,9 @@ final class Coordinator {
 
     // MARK: Card actions
 
-    func didIt() {
-        guard let current = card else { return }
+    /// Pass the card's id from a delayed caller (the confetti) so a stale call cannot complete a newer card.
+    func didIt(cardID: UUID? = nil) {
+        guard let current = card, cardID == nil || cardID == current.id else { return }
         engine.markDone(current.plan.kinds)
         stats.record(taken: current.plan.kinds.count, on: now, calendar: calendar)
         store.save(stats)
@@ -2420,6 +2578,24 @@ final class Coordinator {
         settings = new
         engine.updateSettings(new)
         store.save(new)
+        reconcileCard()
+    }
+
+    /// Drop reminders the user just switched off from the card on screen; hide it if none remain.
+    private func reconcileCard() {
+        guard let current = card else { return }
+        let kept = current.plan.kinds.filter { settings.reminder($0).isEnabled }
+        if kept.isEmpty {
+            hideCard()
+        } else if kept != current.plan.kinds {
+            let longest = kept.map { settings.reminder($0).breakSeconds }.max() ?? 0
+            let plan = CardPlan(kinds: kept,
+                                countdownSeconds: longest > 0 ? longest : CardPlanner.untimedDisplaySeconds,
+                                isTimed: longest > 0)
+            card = CardPresentation(id: current.id, plan: plan, headline: current.headline,
+                                    startedAt: current.startedAt, isForced: current.isForced,
+                                    secondsLeft: min(current.secondsLeft, plan.countdownSeconds))
+        }
     }
 
     func resetSettingsToDefaults() {
@@ -2552,7 +2728,7 @@ struct NudgieApp: App {
 - [ ] **Step 5: Test, build and verify by running**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: all pass (70 + 8 = 78).
+Expected: all pass (74 + 11 = 85).
 
 Run: `swift build 2>&1 | grep -E "error|warning: var|Build complete" | head`
 Expected: `Build complete!` and no errors.
@@ -2924,12 +3100,14 @@ struct CardView: View {
                     .foregroundStyle(text.opacity(0.8))
                     .lineLimit(2)
                 HStack(spacing: 8) {
-                    Button { celebrate() } label: { Text("Did it!").font(Theme.headline(13)) }
+                    Button { celebrate(card) } label: { Text("Did it!").font(Theme.headline(13)) }
                         .buttonStyle(PillButtonStyle(fill: accent, outline: Theme.ink, text: Theme.ink))
+                        .disabled(celebrating)
                     Button { coordinator.snooze() } label: {
                         Text("\(coordinator.settings.snoozeMinutes) more min").font(Theme.body(12))
                     }
                     .buttonStyle(PillButtonStyle(fill: .clear, outline: text, text: text))
+                    .disabled(celebrating)
                     Spacer()
                     Text(timeLeft(card))
                         .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
@@ -2977,15 +3155,16 @@ struct CardView: View {
         return card.plan.kinds.map { "\($0.emoji) \($0.title)" }.joined(separator: " · ")
     }
 
-    private func celebrate() {
+    /// Confetti first, then completion, but only of the card that was clicked.
+    private func celebrate(_ card: CardPresentation) {
         if reduceMotion {
-            coordinator.didIt()
+            coordinator.didIt(cardID: card.id)
             return
         }
         celebrating = true
         Task {
             try? await Task.sleep(for: .milliseconds(650))
-            coordinator.didIt()
+            coordinator.didIt(cardID: card.id)
             celebrating = false
         }
     }
@@ -3096,7 +3275,8 @@ Run each of these and look at the top-right corner of the main screen:
 5. `swift run Nudgie --demo stretch`: lemon, blob stretches tall, "1:00".
 6. Click "Did it!": confetti, then the card leaves. Click "5 more min" on the next demo: card leaves at once. Click ✕: card leaves.
 7. Focus test: open TextEdit, start typing, run `--demo eyes` from the terminal, keep typing while the card appears. The cursor must stay in TextEdit.
-8. Full-screen test: put Safari in full screen, run `--demo posture`. The card must appear over it.
+7b. Lock test: run `--demo walk`, lock the screen (Ctrl-Cmd-Q) while the card is up, unlock after 30 seconds: the card was gone on unlock and comes back about 30 seconds later.
+8. Full-screen test: put **TextEdit** in full screen (not Safari: browsers trigger quiet mode, so the demo card would wait), run `--demo posture`. The card must appear over it.
 9. Dark mode: System Settings → Appearance → Dark, run `--demo eyes`. Ink card, cream text, mint shadow.
 10. Reduce Motion: System Settings → Accessibility → Display → Reduce motion on, run `--demo eyes`: no wobble, no darting pupils, "Did it!" gives no confetti. Turn it back off.
 
@@ -3130,9 +3310,24 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 import AppKit
 
 /// Nudgie's face at 18 pt as a template image, so it follows light and dark menu bars.
+/// Frames are rendered once on the main thread and cached: a lazy drawing handler could be
+/// invoked by AppKit off the main thread, which would trip the main-actor check in Swift 6.
 enum MenuBarIcon {
+    private static var cache: [IconState: NSImage] = [:]
+
     static func image(for state: IconState) -> NSImage {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+        if let cached = cache[state] { return cached }
+        let image = render(state)
+        cache[state] = image
+        return image
+    }
+
+    private static func render(_ state: IconState) -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18))
+        image.lockFocus()
+        defer { image.unlockFocus() }
+        let rect = NSRect(x: 0, y: 0, width: 18, height: 18)
+        do {
             NSColor.black.setStroke()
             NSColor.black.setFill()
 
@@ -3178,13 +3373,14 @@ enum MenuBarIcon {
                 smile.lineCapStyle = .round
                 smile.stroke()
             }
-            return true
         }
         image.isTemplate = true
         return image
     }
 }
 ```
+
+`IconState` must be `Hashable` for the cache: in `Coordinator.swift` change it to `enum IconState: Equatable, Hashable { ... }`.
 
 - [ ] **Step 2: Use it as the label**
 
@@ -3220,7 +3416,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `Coordinator.settings`, `Coordinator.updateSettings(_:)`, `Coordinator.resetSettingsToDefaults()`, `Sound.available`, `Sound.play`, `MascotView`, `Theme`.
-- Produces: `struct SettingsView(coordinator:)`, `enum LaunchAtLogin { static func set(_ enabled: Bool) throws; static var isEnabled: Bool }`.
+- Produces: `struct SettingsView(coordinator:)`, `enum LaunchAtLogin { static func set(_ enabled: Bool) throws; static var isEnabled: Bool; static var note: String? }`. The toggle reflects `SMAppService.mainApp.status` (the truth), not the stored setting: a failed change rolls back, and `.requiresApproval` shows a hint.
 
 Design: the window edits a local `draft` copy of the settings and pushes every change to the coordinator, which saves it. If the coordinator's settings change from elsewhere (reset to defaults), the draft follows.
 
@@ -3400,7 +3596,22 @@ struct MeetingsTab: View {
 struct GeneralTab: View {
     @Binding var draft: NudgieSettings
     let coordinator: Coordinator
-    @State private var loginError: String?
+    @State private var loginEnabled = LaunchAtLogin.isEnabled
+    @State private var loginNote: String? = LaunchAtLogin.note
+
+    /// The system's login-item status is the truth; the toggle follows it and rolls back on failure.
+    private var launchBinding: Binding<Bool> {
+        Binding(get: { loginEnabled }, set: { wanted in
+            do {
+                try LaunchAtLogin.set(wanted)
+                loginNote = LaunchAtLogin.note
+            } catch {
+                loginNote = "Could not change the login item: \(error.localizedDescription). This only works from the built Nudgie.app, not from swift run."
+            }
+            loginEnabled = LaunchAtLogin.isEnabled
+            draft.launchAtLogin = loginEnabled
+        })
+    }
 
     var body: some View {
         Form {
@@ -3418,17 +3629,9 @@ struct GeneralTab: View {
                 Stepper("Snooze for \(draft.snoozeMinutes) min", value: $draft.snoozeMinutes, in: 1...30)
             }
             Section("Startup") {
-                Toggle("Launch Nudgie at login", isOn: $draft.launchAtLogin)
-                    .onChange(of: draft.launchAtLogin) { _, on in
-                        do {
-                            try LaunchAtLogin.set(on)
-                            loginError = nil
-                        } catch {
-                            loginError = "Could not change the login item: \(error.localizedDescription). This only works from the built Nudgie.app, not from swift run."
-                        }
-                    }
-                if let loginError {
-                    Text(loginError).font(.caption).foregroundStyle(.red)
+                Toggle("Launch Nudgie at login", isOn: launchBinding)
+                if let loginNote {
+                    Text(loginNote).font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section {
@@ -3438,6 +3641,11 @@ struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            // Someone may have changed it in System Settings → Login Items.
+            loginEnabled = LaunchAtLogin.isEnabled
+            loginNote = LaunchAtLogin.note
+        }
     }
 }
 
@@ -3451,6 +3659,13 @@ enum LaunchAtLogin {
     }
 
     static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
+
+    static var note: String? {
+        switch SMAppService.mainApp.status {
+        case .requiresApproval: "Waiting for your approval in System Settings → General → Login Items."
+        default: nil
+        }
+    }
 }
 ```
 
@@ -3471,7 +3686,7 @@ Run `swift run Nudgie`, open the menu, choose Settings…:
 1. Reminders: toggle Eyes off. Open the menu again: the Eyes row is gone. Toggle it back on. Step "Every" for Water to 50: the menu's Water row shows a new time on next open.
 2. Meetings: add `com.apple.TextEdit` via the Running app… menu (open TextEdit first). Click into TextEdit; the status line reads "Quiet: Meeting app in front". Remove it with the ✕; status returns to "Counting". Reset list to defaults restores 19 entries.
 3. Work hours: switch on, set a window that excludes now; status reads "Off the clock". Step "From" up past "To": "To" moves with it and stays 30 min later. Switch off.
-4. General: pick "Glass", click Play, hear it. Toggle Launch at login: expect the red note (not bundled yet); Task 13 makes it work. Reset everything to defaults: all tabs return to defaults.
+4. General: pick "Glass", click Play, hear it. Toggle Launch at login: it snaps back off with the note that this only works from the built app; Task 13 makes it work. Reset everything to defaults: all tabs return to defaults.
 5. Quit and relaunch: settings persisted (check the water interval you changed).
 
 - [ ] **Step 4: Commit**
@@ -3485,14 +3700,28 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ---
 
-### Task 13: App bundle, icon and install
+### Task 13: Licence file, app bundle, icon and install
 
 **Files:**
-- Create: `Resources/Info.plist`, `tools/make-app.sh`, `tools/make-icon.swift`, `Resources/Nudgie.icns` (generated, committed)
+- Create: `LICENSE`, `Resources/Info.plist`, `tools/make-app.sh`, `tools/make-icon.swift`, `Resources/Nudgie.icns` (generated, committed)
 
 **Interfaces:**
 - Consumes: the `Nudgie` executable product; `Makefile` targets from Task 1 (`app`, `run`, `install`).
-- Produces: `build/Nudgie.app`, ad-hoc signed, no Dock icon.
+- Produces: `LICENSE` (PolyForm Shield 1.0.0 with the required notice), `build/Nudgie.app` (universal arm64 + x86_64, ad-hoc signed, no Dock icon, licence inside the bundle).
+
+- [ ] **Step 0: Licence text from the source, not from memory**
+
+The licence says anyone redistributing the software must pass on the terms plus any plain-text lines beginning with `Required Notice:`. So the file starts with exactly such a line, and the bundle ships the file.
+
+```bash
+{
+  echo "Required Notice: Copyright 2026 Gourav Kakkar (https://github.com/gouravkakkar/nudgie)"
+  echo
+  curl -fsSL https://raw.githubusercontent.com/polyformproject/polyform-licenses/1.0.0/PolyForm-Shield-1.0.0.md
+} > LICENSE
+head -4 LICENSE
+```
+Expected: the `Required Notice:` line, a blank line, then `# PolyForm Shield License 1.0.0`. If curl fails, stop and say so; do not paste licence text from memory.
 
 - [ ] **Step 1: Info.plist**
 
@@ -3599,30 +3828,35 @@ Expected: `Wrote Resources/Nudgie.icns` and a file of a few hundred KB. Open it 
 `tools/make-app.sh` (then `chmod +x tools/make-app.sh`):
 ```bash
 #!/bin/bash
-# Builds release and assembles build/Nudgie.app with an ad-hoc signature.
+# Builds a universal (Apple Silicon + Intel) release and assembles build/Nudgie.app with an ad-hoc signature.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 APP=Nudgie
 OUT="build/$APP.app"
+[ -f LICENSE ] || { echo "LICENSE is missing; run Task 13 step 0 first" >&2; exit 1; }
 
-swift build -c release 2>&1 | tail -1
+# Two --arch flags make SwiftPM emit a fat binary under .build/apple/Products/Release (verified on this Mac).
+swift build -c release --arch arm64 --arch x86_64 2>&1 | tail -1
+BIN=".build/apple/Products/Release/$APP"
+lipo -info "$BIN" | grep -q "x86_64 arm64" || { echo "expected a universal binary, got: $(lipo -info "$BIN")" >&2; exit 1; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
-cp ".build/release/$APP" "$OUT/Contents/MacOS/$APP"
+cp "$BIN" "$OUT/Contents/MacOS/$APP"
 cp Resources/Info.plist "$OUT/Contents/Info.plist"
 cp Resources/Nudgie.icns "$OUT/Contents/Resources/Nudgie.icns"
+cp LICENSE "$OUT/Contents/Resources/LICENSE"
 printf 'APPL????' > "$OUT/Contents/PkgInfo"
 
 codesign --force --sign - --identifier com.gouravkakkar.nudgie "$OUT"
-echo "Built $OUT"
+echo "Built $OUT ($(lipo -archs "$OUT/Contents/MacOS/$APP"))"
 ```
 
 - [ ] **Step 4: Build, run, install, verify**
 
-Run: `make app && codesign -dv build/Nudgie.app 2>&1 | grep -E "Identifier|Signature"`
-Expected: `Built build/Nudgie.app`, `Identifier=com.gouravkakkar.nudgie`, `Signature=adhoc`.
+Run: `make app && codesign -dv build/Nudgie.app 2>&1 | grep -E "Identifier|Signature" && lipo -archs build/Nudgie.app/Contents/MacOS/Nudgie && ls build/Nudgie.app/Contents/Resources`
+Expected: `Built build/Nudgie.app (x86_64 arm64)`, `Identifier=com.gouravkakkar.nudgie`, `Signature=adhoc`, `x86_64 arm64`, and `LICENSE Nudgie.icns` in Resources.
 
 Run: `make run`. The face appears in the menu bar, no Dock icon, no window. Finder shows the mint face icon on `build/Nudgie.app`. Open Settings → General → Launch at login: no red error now; `sfltool dumpbtm 2>/dev/null | grep -i nudgie` or System Settings → General → Login Items shows Nudgie. Switch it off again. Quit.
 
@@ -3631,34 +3865,25 @@ Run: `make install && ls /Applications | grep Nudgie` → `Nudgie.app`.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Resources tools Makefile
-git commit -m "build: add Info.plist, icon generator, bundle script and install target
+git add LICENSE Resources tools Makefile
+git commit -m "build: add licence, Info.plist, icon generator, universal bundle script and install target
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 14: README (SEO), licence, contributor terms, user docs and CI
+### Task 14: README (SEO), contributor terms, user docs and CI
 
 **Files:**
-- Create: `README.md`, `LICENSE`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/user-guide.md`, `docs/qa-checklist.md`, `.github/workflows/ci.yml`
+- Create: `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/user-guide.md`, `docs/qa-checklist.md`, `.github/workflows/ci.yml`
 
 **Interfaces:**
-- Consumes: spec sections 3, 4, 13, 14 (copy the wording; do not invent claims).
+- Consumes: spec sections 3, 4, 13, 14 (copy the wording; do not invent claims); `LICENSE` from Task 13.
 
-- [ ] **Step 1: Licence text from the source, not from memory**
+- [ ] **Step 1: Confirm the licence file exists**
 
-```bash
-{
-  echo "Copyright 2026 Gourav Kakkar"
-  echo "Licensed under the PolyForm Shield License 1.0.0"
-  echo
-  curl -fsSL https://raw.githubusercontent.com/polyformproject/polyform-licenses/1.0.0/PolyForm-Shield-1.0.0.md
-} > LICENSE
-head -6 LICENSE
-```
-Expected: the two notice lines, then `# PolyForm Shield License 1.0.0`. If curl fails, stop and say so; do not paste licence text from memory.
+Run: `head -1 LICENSE` → the `Required Notice:` line. If it is missing, do Task 13 step 0 first.
 
 - [ ] **Step 2: README**
 
@@ -3695,13 +3920,15 @@ Every reminder can be switched off or retimed.
 
 ## Install
 
-Nudgie is not yet notarised (that needs a paid Apple Developer account), so macOS shows a warning the first time you open a downloaded copy.
+Works on macOS 14 Sonoma or newer, Apple Silicon and Intel (the download is a universal build).
 
-1. Download `Nudgie.app.zip` from the latest [release](../../releases) and unzip it.
-2. Move `Nudgie.app` to `/Applications`.
-3. Right-click `Nudgie.app` → **Open** → **Open**. You only have to do this once.
+Nudgie is not yet notarised (that needs a paid Apple Developer account), so macOS blocks a downloaded copy the first time. This is a one-time step:
 
-If you prefer the terminal:
+1. Download `Nudgie.app.zip` from the latest [release](../../releases), unzip it, and move `Nudgie.app` to `/Applications`.
+2. Double-click it. macOS says it cannot verify the app. Click **Done** (not Move to Trash).
+3. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to the Nudgie message, then **Open**.
+
+On macOS 13 and older, right-click → **Open** → **Open** does the same job. If you prefer the terminal:
 
 ```bash
 xattr -d com.apple.quarantine /Applications/Nudgie.app
@@ -3889,6 +4116,10 @@ on:
     tags: ["v*"]
   pull_request:
 
+# Read-only by default. Only the release job may write, and only on a tag.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: macos-latest
@@ -3900,7 +4131,7 @@ jobs:
           swift --version
       - name: Unit tests
         run: swift test
-      - name: Build app bundle
+      - name: Build universal app bundle
         run: ./tools/make-app.sh
       - name: Zip
         run: ditto -c -k --keepParent build/Nudgie.app build/Nudgie.app.zip
@@ -3908,8 +4139,19 @@ jobs:
         with:
           name: Nudgie.app
           path: build/Nudgie.app.zip
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Nudgie.app
+          path: build
+      - name: Attach to the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: build/Nudgie.app.zip
@@ -3918,11 +4160,11 @@ If the hosted runner's newest Xcode is older than 26, change `runs-on` to `macos
 
 - [ ] **Step 5: Verify links and wording, then commit**
 
-Run: `grep -n "open source" README.md CONTRIBUTING.md docs/user-guide.md` → no matches (the phrase is "source-available"). Run: `head -3 LICENSE` shows the notice. `make test` still passes.
+Run: `grep -n "open source" README.md CONTRIBUTING.md docs/user-guide.md` → no matches (the phrase is "source-available"). `make test` still passes.
 
 ```bash
-git add README.md LICENSE CONTRIBUTING.md CHANGELOG.md docs .github
-git commit -m "docs: add README, PolyForm Shield licence, contributor terms, user guide, QA checklist and CI
+git add README.md CONTRIBUTING.md CHANGELOG.md docs .github
+git commit -m "docs: add README, contributor terms, user guide, QA checklist and CI
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
@@ -3937,7 +4179,27 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Type consistency.** `ReminderSetting(isEnabled:intervalMinutes:breakSeconds:)` used identically in T3, T5, T6, T12. `TimerEngine.TickOutcome` cases match between T5 and T9. `CardPlanner.forcePlan(kinds:settings:)` defined in T6, used in T9. `CardPresentation.accentKind` defined in T9, used in T10. `Coordinator.card`, `.settings`, `.didIt()`, `.snooze()`, `.close()` used in T10 match T9. `IconState` defined in T9, used in T11. `Sound.available`/`Sound.play` defined in T10, used in T12. `CardView.width/height/margin` defined and used in T10.
 
+**Engineering review 2026-09-06 (Claude + Codex outside voice).** Folded into the tasks above: `@Observable` init order in `Coordinator`; `@MainActor` on the nested test `Rig`; cards hidden on lock/sleep and never started while away; away stretch checked on return (lock + sleep combined); measured elapsed time capped at 2 s per tick; snooze longer than the interval; card reconciled when a reminder is disabled; confetti completes only the clicked card (card id); menu icon frames pre-rendered and cached; mic detection per process (macOS 14.2+) so AirPods playback is not "mic in use"; probe cadence on uptime; launch-at-login toggle follows `SMAppService` status; full-screen test uses TextEdit, not Safari; universal binary; licence created before packaging, `Required Notice:` line, licence inside the bundle; CI release job with `contents: write`; README Gatekeeper steps for macOS 14+.
+
+**Deliberately not done from that review.** Card countdowns, breathing gap and settle gap still use the wall clock. A clock change during a card ends it early or late once; a monotonic clock for those would touch every planner test for a once-a-year event. Recorded here so nobody rediscovers it.
+
 **Known risks to watch during execution.**
 - Swift 6 strict concurrency around `addObserver` closures and `Timer` closures: the pattern used is `MainActor.assumeIsolated` inside `@Sendable` closures on the main queue. If the compiler objects to capturing `self`, mark the closure `[weak self]` and unwrap inside `assumeIsolated`.
 - `MenuBarExtra` label images: if the blink does not visibly update, add `.id(appDelegate.coordinator.iconState)` to the `Image`.
 - `SettingsLink` opens the Settings scene only on macOS 14+; the deployment target is 14, so this is fine.
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | scope settled in brainstorming (spec §2, user-approved 2026-09-06) |
+| Codex Review | `/codex review` | Independent 2nd opinion | 1 | CLEAR | 17 findings, 16 folded into tasks, 1 deliberately deferred (monotonic clock for card timing) |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 7 issues (2 P1 logic, 5 P2), 0 critical gaps, all folded |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | visual direction fixed in spec §9; manual QA checklist in Task 14 |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | `make test/app/run/install`, `--probe`, `--demo` cover it |
+
+- **CODEX:** 17 findings (2 compile errors, 9 logic/UX gaps, 6 packaging/docs); 16 applied in the tasks above, 1 deferred with rationale in the self-review section.
+- **CROSS-MODEL:** No contradictions. Claude's review found the sleep-gap reset, the forced-card hide, settings clamping, work-hours ordering and missing app-layer tests; Codex found everything else. Both agree on the architecture (pure core + thin main-actor app, injected probes and clock).
+- **VERDICT:** ENG + CODEX CLEARED — ready to implement.
+
+NO UNRESOLVED DECISIONS
