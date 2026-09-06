@@ -112,12 +112,12 @@ import Testing
         Self.run(&e, from: &now, seconds: 60)
         now = now.addingTimeInterval(10)           // the timer fired late
         e.tick(now: now, activity: ActivityState(), calendar: TestClock.utc)
-        #expect(e.secondsUntilDue(.eyes) == 1200 - 60 - 2)
+        #expect(e.secondsUntilDue(.eyes) == 1138)
         e.tick(now: now, activity: ActivityState(), calendar: TestClock.utc)   // same instant again
-        #expect(e.secondsUntilDue(.eyes) == 1200 - 60 - 2)
+        #expect(e.secondsUntilDue(.eyes) == 1138)
         now = now.addingTimeInterval(-30)          // clock jumped backward
         e.tick(now: now, activity: ActivityState(), calendar: TestClock.utc)
-        #expect(e.secondsUntilDue(.eyes) == 1200 - 60 - 2)
+        #expect(e.secondsUntilDue(.eyes) == 1138)
     }
 
     @Test func eachReminderPendsOnceInDueOrder() {
@@ -156,7 +156,7 @@ import Testing
         var e = TimerEngine(settings: s)
         e.triggerNow(.water)
         e.snooze([.water])
-        #expect(e.secondsUntilDue(.water) == 30 * 60)
+        #expect(e.secondsUntilDue(.water) == 1800)
         var now = Self.start
         Self.run(&e, from: &now, seconds: 30 * 60 - 1)
         #expect(!e.pending.contains(.water))
