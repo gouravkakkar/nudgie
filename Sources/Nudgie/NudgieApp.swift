@@ -7,7 +7,7 @@ struct NudgieApp: App {
         MenuBarExtra {
             MenuBarView(coordinator: appDelegate.coordinator)
         } label: {
-            Image(systemName: "face.smiling")
+            Image(nsImage: MenuBarIcon.image(for: appDelegate.coordinator.iconState))
                 .accessibilityLabel("Nudgie")
         }
         .menuBarExtraStyle(.menu)
