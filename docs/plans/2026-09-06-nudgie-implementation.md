@@ -127,9 +127,23 @@ let package = Package(
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
         .testTarget(name: "NudgieCoreTests", dependencies: ["NudgieCore"]),
+        .testTarget(name: "NudgieAppTests", dependencies: ["Nudgie"]),
     ]
 )
 ```
+
+SwiftPM can test an executable target (verified on this Mac with a `.defaultIsolation(MainActor.self)` target): test functions just need `@MainActor`.
+
+`Tests/NudgieAppTests/AppSmokeTests.swift` (placeholder, replaced in Task 8):
+```swift
+import Testing
+@testable import Nudgie
+
+@MainActor @Test func appModuleLinks() {
+    #expect(NudgieCore.version == "0.1.0")
+}
+```
+(add `import NudgieCore` at the top of that file too.)
 
 - [ ] **Step 3: Create the two placeholder sources**
 
@@ -188,7 +202,7 @@ build/
 - [ ] **Step 5: Run the test and verify it passes**
 
 Run: `swift test 2>&1 | tail -3`
-Expected: `✔ Test run with 1 test in 0 suites passed`.
+Expected: `✔ Test run with 2 tests in 0 suites passed`.
 
 Run: `swift build 2>&1 | tail -1 && .build/debug/Nudgie`
 Expected: `Build complete!` then `Nudgie 0.1.0`.
@@ -332,7 +346,7 @@ public enum ReminderKind: String, CaseIterable, Codable, Sendable {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: `✔ Test run with 9 tests in 1 suite passed` (5 parameterised cases + 4).
+Expected: `✔ Test run with 10 tests` (5 parameterised cases + 4 here, plus the app smoke test).
 
 - [ ] **Step 5: Commit**
 
@@ -349,6 +363,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `Sources/NudgieCore/NudgieSettings.swift`
+- Create: `Tests/NudgieCoreTests/TestSupport.swift` (shared fixed calendar for every core test)
 - Test: `Tests/NudgieCoreTests/NudgieSettingsTests.swift`
 
 **Interfaces:**
@@ -356,9 +371,28 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Produces:
   - `public struct ReminderSetting: Codable, Equatable, Sendable { var isEnabled: Bool; var intervalMinutes: Int; var breakSeconds: Int; var intervalSeconds: Double; static func `default`(for:) }`
   - `public struct WorkHours: Codable, Equatable, Sendable { var isEnabled; var startMinute; var endMinute; var weekdays: Set<Int>; func allows(_ date: Date, calendar: Calendar) -> Bool }`
-  - `public struct NudgieSettings: Codable, Equatable, Sendable` with fields `version, reminders: [ReminderKind: ReminderSetting], quietOnCameraOrMic, quietOnQuietApps, quietAppPrefixes: [String], workHours, snoozeMinutes, soundEnabled, soundName, launchAtLogin`; `static let defaults`, `static let intervalRange = 5...180`, `static let defaultQuietAppPrefixes: [String]`, `func reminder(_:) -> ReminderSetting`, `mutating func setReminder(_:for:)`, `var enabledKinds: [ReminderKind]`, `static func decode(_ data: Data) -> NudgieSettings?`, `func encoded() throws -> Data`.
+  - `public struct NudgieSettings: Codable, Equatable, Sendable` with fields `version, reminders: [ReminderKind: ReminderSetting], quietOnCameraOrMic, quietOnQuietApps, quietAppPrefixes: [String], workHours, snoozeMinutes, soundEnabled, soundName, launchAtLogin`; `static let defaults`, `static let intervalRange = 5...180`, `static let breakRange = 0...3600`, `static let snoozeRange = 1...30` (decode clamps into these), `static let defaultQuietAppPrefixes: [String]`, `func reminder(_:) -> ReminderSetting`, `mutating func setReminder(_:for:)`, `var enabledKinds: [ReminderKind]`, `static func decode(_ data: Data) -> NudgieSettings?`, `func encoded() throws -> Data`.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the shared test helper and the failing tests**
+
+`Tests/NudgieCoreTests/TestSupport.swift`:
+```swift
+import Foundation
+
+/// Fixed calendar and date builder so tests never depend on the machine's time zone.
+enum TestClock {
+    static let utc: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+
+    /// 2026-09-07 is a Monday, 2026-09-12 a Saturday.
+    static func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 12, _ min: Int = 0) -> Date {
+        utc.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min))!
+    }
+}
+```
 
 `Tests/NudgieCoreTests/NudgieSettingsTests.swift`:
 ```swift
@@ -367,16 +401,6 @@ import Testing
 @testable import NudgieCore
 
 @Suite struct NudgieSettingsTests {
-    // 2026-09-07 is a Monday, 2026-09-12 a Saturday.
-    static let utc: Calendar = {
-        var c = Calendar(identifier: .gregorian)
-        c.timeZone = TimeZone(identifier: "UTC")!
-        return c
-    }()
-    static func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int, _ min: Int) -> Date {
-        utc.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min))!
-    }
-
     @Test func defaultsMatchSpec() {
         let s = NudgieSettings.defaults
         #expect(s.version == NudgieSettings.currentVersion)
@@ -433,18 +457,32 @@ import Testing
         #expect(s.enabledKinds.contains(.stretch))
     }
 
+    @Test func decodeClampsOutOfRangeValues() {
+        let json = #"{"snoozeMinutes":0,"reminders":{"eyes":{"isEnabled":true,"intervalMinutes":0,"breakSeconds":99999}}}"#
+        let s = NudgieSettings.decode(Data(json.utf8))
+        #expect(s?.snoozeMinutes == 1)
+        #expect(s?.reminder(.eyes).intervalMinutes == 5)
+        #expect(s?.reminder(.eyes).breakSeconds == 3600)
+    }
+
     @Test func workHoursAllowsEverythingWhenDisabled() {
         let w = WorkHours(isEnabled: false)
-        #expect(w.allows(Self.date(2026, 9, 12, 3, 0), calendar: Self.utc))
+        #expect(w.allows(TestClock.date(2026, 9, 12, 3, 0), calendar: TestClock.utc))
     }
 
     @Test func workHoursWindowWeekdaysNineToSix() {
         let w = WorkHours(isEnabled: true, startMinute: 9 * 60, endMinute: 18 * 60, weekdays: [2, 3, 4, 5, 6])
-        #expect(w.allows(Self.date(2026, 9, 7, 10, 0), calendar: Self.utc))    // Monday 10:00
-        #expect(w.allows(Self.date(2026, 9, 7, 9, 0), calendar: Self.utc))     // Monday 09:00 inclusive start
-        #expect(!w.allows(Self.date(2026, 9, 7, 18, 0), calendar: Self.utc))   // Monday 18:00 exclusive end
-        #expect(!w.allows(Self.date(2026, 9, 7, 8, 59), calendar: Self.utc))
-        #expect(!w.allows(Self.date(2026, 9, 12, 10, 0), calendar: Self.utc))  // Saturday
+        #expect(w.allows(TestClock.date(2026, 9, 7, 10, 0), calendar: TestClock.utc))    // Monday 10:00
+        #expect(w.allows(TestClock.date(2026, 9, 7, 9, 0), calendar: TestClock.utc))     // Monday 09:00 inclusive start
+        #expect(!w.allows(TestClock.date(2026, 9, 7, 18, 0), calendar: TestClock.utc))   // Monday 18:00 exclusive end
+        #expect(!w.allows(TestClock.date(2026, 9, 7, 8, 59), calendar: TestClock.utc))
+        #expect(!w.allows(TestClock.date(2026, 9, 12, 10, 0), calendar: TestClock.utc))  // Saturday
+    }
+
+    @Test func workHoursWithEndBeforeStartAllowsNothing() {
+        // The settings window prevents this, but a hand-edited file must not crash or misbehave.
+        let w = WorkHours(isEnabled: true, startMinute: 18 * 60, endMinute: 9 * 60, weekdays: [2])
+        #expect(!w.allows(TestClock.date(2026, 9, 7, 10, 0), calendar: TestClock.utc))
     }
 }
 ```
@@ -513,6 +551,8 @@ public struct WorkHours: Codable, Equatable, Sendable {
 public struct NudgieSettings: Codable, Equatable, Sendable {
     public static let currentVersion = 1
     public static let intervalRange = 5...180
+    public static let breakRange = 0...3600
+    public static let snoozeRange = 1...30
     public static let defaultQuietAppPrefixes: [String] = [
         // Browsers
         "com.apple.Safari", "com.google.Chrome", "org.chromium.Chromium",
@@ -564,16 +604,18 @@ public struct NudgieSettings: Codable, Equatable, Sendable {
     public static let defaults = NudgieSettings()
 
     /// Missing keys fall back to defaults so older or hand-edited JSON still loads.
+    /// Out-of-range numbers are clamped: an interval of 0 would otherwise show a card every 30 seconds.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = NudgieSettings.defaults
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? d.version
-        reminders = try c.decodeIfPresent([ReminderKind: ReminderSetting].self, forKey: .reminders) ?? d.reminders
+        reminders = (try c.decodeIfPresent([ReminderKind: ReminderSetting].self, forKey: .reminders) ?? d.reminders)
+            .mapValues(Self.clamped)
         quietOnCameraOrMic = try c.decodeIfPresent(Bool.self, forKey: .quietOnCameraOrMic) ?? d.quietOnCameraOrMic
         quietOnQuietApps = try c.decodeIfPresent(Bool.self, forKey: .quietOnQuietApps) ?? d.quietOnQuietApps
         quietAppPrefixes = try c.decodeIfPresent([String].self, forKey: .quietAppPrefixes) ?? d.quietAppPrefixes
         workHours = try c.decodeIfPresent(WorkHours.self, forKey: .workHours) ?? d.workHours
-        snoozeMinutes = try c.decodeIfPresent(Int.self, forKey: .snoozeMinutes) ?? d.snoozeMinutes
+        snoozeMinutes = Self.clamp(try c.decodeIfPresent(Int.self, forKey: .snoozeMinutes) ?? d.snoozeMinutes, to: Self.snoozeRange)
         soundEnabled = try c.decodeIfPresent(Bool.self, forKey: .soundEnabled) ?? d.soundEnabled
         soundName = try c.decodeIfPresent(String.self, forKey: .soundName) ?? d.soundName
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
@@ -596,6 +638,16 @@ public struct NudgieSettings: Codable, Equatable, Sendable {
         try? JSONDecoder().decode(NudgieSettings.self, from: data)
     }
 
+    static func clamp(_ value: Int, to range: ClosedRange<Int>) -> Int {
+        min(max(value, range.lowerBound), range.upperBound)
+    }
+
+    private static func clamped(_ setting: ReminderSetting) -> ReminderSetting {
+        ReminderSetting(isEnabled: setting.isEnabled,
+                        intervalMinutes: clamp(setting.intervalMinutes, to: intervalRange),
+                        breakSeconds: clamp(setting.breakSeconds, to: breakRange))
+    }
+
     public func encoded() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -607,15 +659,15 @@ public struct NudgieSettings: Codable, Equatable, Sendable {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: all tests pass (9 from Task 2 + 8 here = 17).
+Expected: all tests pass (10 so far + 10 here = 20).
 
 If `remindersEncodeAsObjectKeyedByKindName` fails because the dictionary encoded as an array, the `CodingKeyRepresentable` extension is missing. Do not switch to `[String: ReminderSetting]`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/NudgieCore/NudgieSettings.swift Tests/NudgieCoreTests/NudgieSettingsTests.swift
-git commit -m "feat(core): add Codable NudgieSettings with defaults and work hours
+git add Sources/NudgieCore/NudgieSettings.swift Tests/NudgieCoreTests/TestSupport.swift Tests/NudgieCoreTests/NudgieSettingsTests.swift
+git commit -m "feat(core): add Codable NudgieSettings with defaults, clamping and work hours
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
@@ -806,7 +858,7 @@ public enum QuietPolicy {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: all pass (17 + 12 = 29).
+Expected: all pass (20 + 12 = 32).
 
 - [ ] **Step 5: Commit**
 
@@ -837,6 +889,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 Behaviour rules (from spec sections 7 and 8):
 1. Manual pause and off-the-clock both stop counting **and reset everything**, so resuming never fires a stale reminder.
 2. Away (locked, asleep, or idle ≥ 300 s) stops counting. Once the away stretch has lasted 300 s, reset everything exactly once (`.resetAfterAway`). Idle time that already elapsed counts toward the stretch, so "idle 300 s" resets immediately while "locked 10 s ago" resets 290 s later.
+2b. A gap of 300 s or more between two ticks means the process was suspended (the Mac slept). No tick observed the away stretch, so the gap itself resets everything. Without this, a laptop closed overnight would wake with yesterday's timers.
 3. While active, every enabled reminder that is not already pending gains `elapsed` seconds; reaching its interval appends it to `pending` once.
 4. Quiet mode is not the engine's business. Counting continues in meetings; the planner decides when to show.
 
@@ -849,13 +902,8 @@ import Testing
 @testable import NudgieCore
 
 @Suite struct TimerEngineTests {
-    static let utc: Calendar = {
-        var c = Calendar(identifier: .gregorian)
-        c.timeZone = TimeZone(identifier: "UTC")!
-        return c
-    }()
     /// Monday 2026-09-07 10:00 UTC.
-    static let start = utc.date(from: DateComponents(year: 2026, month: 9, day: 7, hour: 10, minute: 0))!
+    static let start = TestClock.date(2026, 9, 7, 10, 0)
 
     /// Drives the engine one second at a time. `activity` is built from the tick index so idle can grow.
     @discardableResult
@@ -864,7 +912,7 @@ import Testing
         var outcomes: [TimerEngine.TickOutcome] = []
         for i in 0..<seconds {
             now = now.addingTimeInterval(1)
-            outcomes.append(engine.tick(now: now, activity: activity(i), calendar: utc))
+            outcomes.append(engine.tick(now: now, activity: activity(i), calendar: TestClock.utc))
         }
         return outcomes
     }
@@ -924,6 +972,18 @@ import Testing
         #expect(e.activeSeconds[.eyes] == nil || e.activeSeconds[.eyes] == 0)
     }
 
+    @Test func longGapBetweenTicksResetsTimers() {
+        // The Mac slept: no ticks arrived for an hour. That gap was a break.
+        var e = TimerEngine(settings: .defaults)
+        var now = Self.start
+        Self.run(&e, from: &now, seconds: 15 * 60)
+        now = now.addingTimeInterval(3600)
+        #expect(e.tick(now: now, activity: ActivityState(), calendar: TestClock.utc) == .resetAfterAway)
+        #expect(e.secondsUntilDue(.eyes) == 1200)
+        let after = Self.run(&e, from: &now, seconds: 1)
+        #expect(after == [.counting])
+    }
+
     @Test func shortLockDoesNotReset() {
         var e = TimerEngine(settings: .defaults)
         var now = Self.start
@@ -969,7 +1029,7 @@ import Testing
         var now = Self.start                                   // Monday 10:00, inside
         Self.run(&e, from: &now, seconds: 10 * 60)
         #expect(e.secondsUntilDue(.eyes) == 600)
-        now = Self.utc.date(from: DateComponents(year: 2026, month: 9, day: 7, hour: 18, minute: 30))!
+        now = TestClock.date(2026, 9, 7, 18, 30)
         let out = Self.run(&e, from: &now, seconds: 5)
         #expect(out.allSatisfy { $0 == .offTheClock })
         #expect(e.secondsUntilDue(.eyes) == 1200)
@@ -1060,6 +1120,8 @@ public struct TimerEngine: Equatable, Sendable {
     /// Start of the current away stretch, nil while active.
     private var awayStartedAt: Date?
     private var didResetForThisAway = false
+    /// When the previous tick happened. A long gap means the Mac was asleep.
+    private var lastTickAt: Date?
 
     public init(settings: NudgieSettings) {
         self.settings = settings
@@ -1070,23 +1132,29 @@ public struct TimerEngine: Equatable, Sendable {
     @discardableResult
     public mutating func tick(now: Date, activity: ActivityState, elapsed: Double = 1,
                               calendar: Calendar = .current) -> TickOutcome {
+        defer { lastTickAt = now }
         if let until = manualPauseUntil {
             if now < until { return .paused(until: until) }
             manualPauseUntil = nil
+        }
+        if let last = lastTickAt, now.timeIntervalSince(last) >= ActivityState.awayThresholdSeconds {
+            // No ticks for 5+ minutes: the process was suspended (sleep). That gap was a break.
+            resetAll()
+            awayStartedAt = nil
+            didResetForThisAway = false
+            return .resetAfterAway
         }
         guard settings.workHours.allows(now, calendar: calendar) else {
             resetAll()
             return .offTheClock
         }
         if activity.isAway {
-            if awayStartedAt == nil {
-                // Idle time already elapsed counts toward the away stretch.
-                let alreadyAway = min(activity.idleSeconds, ActivityState.awayThresholdSeconds)
-                awayStartedAt = now.addingTimeInterval(-alreadyAway)
-                didResetForThisAway = false
-            }
+            // Idle time already elapsed counts toward the away stretch.
+            let startedAt = awayStartedAt
+                ?? now.addingTimeInterval(-min(activity.idleSeconds, ActivityState.awayThresholdSeconds))
+            awayStartedAt = startedAt
             if !didResetForThisAway,
-               now.timeIntervalSince(awayStartedAt!) >= ActivityState.awayThresholdSeconds {
+               now.timeIntervalSince(startedAt) >= ActivityState.awayThresholdSeconds {
                 resetAll()
                 didResetForThisAway = true
                 return .resetAfterAway
@@ -1169,7 +1237,7 @@ public struct TimerEngine: Equatable, Sendable {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: all pass (29 + 15 = 44). If `idleReachingFiveMinutesResetsOnce` is off by one, check that the reset compares with `>=` and that `alreadyAway` uses the idle seconds from the first away tick.
+Expected: all pass (32 + 16 = 48). If `idleReachingFiveMinutesResetsOnce` is off by one, check that the reset compares with `>=` and that `alreadyAway` uses the idle seconds from the first away tick.
 
 - [ ] **Step 5: Commit**
 
@@ -1362,7 +1430,7 @@ public struct CardPlanner: Equatable, Sendable {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: all pass (44 + 10 = 54).
+Expected: all pass (48 + 10 = 58).
 
 - [ ] **Step 5: Commit**
 
@@ -1448,14 +1516,8 @@ import Testing
 @testable import NudgieCore
 
 @Suite struct DailyStatsTests {
-    static let utc: Calendar = {
-        var c = Calendar(identifier: .gregorian)
-        c.timeZone = TimeZone(identifier: "UTC")!
-        return c
-    }()
-    static func day(_ d: Int, hour: Int = 12) -> Date {
-        utc.date(from: DateComponents(year: 2026, month: 9, day: d, hour: hour))!
-    }
+    static let utc = TestClock.utc
+    static func day(_ d: Int, hour: Int = 12) -> Date { TestClock.date(2026, 9, d, hour) }
 
     @Test func keyIsISODate() {
         #expect(DailyStats.key(for: Self.day(7), calendar: Self.utc) == "2026-09-07")
@@ -1604,7 +1666,7 @@ public struct DailyStats: Codable, Equatable, Sendable {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test 2>&1 | tail -2`
-Expected: all pass (54 + 9 = 63).
+Expected: all pass (58 + 9 = 67).
 
 - [ ] **Step 5: Commit**
 
@@ -1621,20 +1683,84 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Files:**
 - Replace: `Sources/Nudgie/main.swift`
-- Create: `Sources/Nudgie/NudgieApp.swift`, `Sources/Nudgie/AppDelegate.swift`, `Sources/Nudgie/Probes/ActivityProbe.swift`, `Sources/Nudgie/Probes/QuietProbe.swift`, `Sources/Nudgie/Probes/ProbeRunner.swift`, `Sources/Nudgie/Persistence/Store.swift`
+- Create: `Sources/Nudgie/NudgieApp.swift`, `Sources/Nudgie/AppDelegate.swift`, `Sources/Nudgie/Probes/Sampling.swift`, `Sources/Nudgie/Probes/ActivityProbe.swift`, `Sources/Nudgie/Probes/QuietProbe.swift`, `Sources/Nudgie/Probes/ProbeRunner.swift`, `Sources/Nudgie/Persistence/Store.swift`
+- Test: `Tests/NudgieAppTests/StoreTests.swift` (replaces `AppSmokeTests.swift`)
 
 **Interfaces:**
 - Consumes: `ActivityState`, `QuietState`, `NudgieSettings`, `DailyStats` from Core.
 - Produces (all main-actor, the target's default isolation):
-  - `final class ActivityProbe { init(); func sample() -> ActivityState }`
-  - `final class QuietProbe { init(); func sample(now: Date) -> QuietState; static func appName(forBundleID: String) -> String? }`
+  - `protocol ActivitySampling { func sample() -> ActivityState }` and `protocol QuietSampling { func sample(now: Date) -> QuietState }` (so the coordinator can be tested with fakes)
+  - `final class ActivityProbe: ActivitySampling { init(); func sample() -> ActivityState }`
+  - `final class QuietProbe: QuietSampling { init(); func sample(now: Date) -> QuietState; static func appName(forBundleID: String) -> String? }`
   - `struct Store { init(defaults: UserDefaults = .standard); func loadSettings() -> NudgieSettings; func save(_: NudgieSettings); func loadStats() -> DailyStats; func save(_: DailyStats) }`
   - `final class AppDelegate: NSObject, NSApplicationDelegate` (Task 9 adds the coordinator to it)
   - `struct NudgieApp: App`
 
-There are no unit tests for this task: it is all OS glue. Verification is running `--probe` against the real OS (your contract-discipline rule).
+The probes are OS glue and are verified by running `--probe` against the real OS (your contract-discipline rule). The store gets unit tests.
 
-- [ ] **Step 1: Write the probes**
+- [ ] **Step 1: Write the failing store tests**
+
+Delete `Tests/NudgieAppTests/AppSmokeTests.swift`, then create `Tests/NudgieAppTests/StoreTests.swift`:
+```swift
+import Foundation
+import Testing
+import NudgieCore
+@testable import Nudgie
+
+@MainActor @Suite struct StoreTests {
+    func freshDefaults() -> UserDefaults {
+        UserDefaults(suiteName: "nudgie.tests.\(UUID().uuidString)")!
+    }
+
+    @Test func settingsRoundTrip() {
+        let store = Store(defaults: freshDefaults())
+        var s = NudgieSettings.defaults
+        s.snoozeMinutes = 7
+        store.save(s)
+        #expect(store.loadSettings() == s)
+    }
+
+    @Test func missingSettingsGiveDefaults() {
+        #expect(Store(defaults: freshDefaults()).loadSettings() == .defaults)
+    }
+
+    @Test func brokenSettingsFallBackAndKeepABackup() {
+        let defaults = freshDefaults()
+        let broken = Data("{broken".utf8)
+        defaults.set(broken, forKey: Store.settingsKey)
+        let store = Store(defaults: defaults)
+        #expect(store.loadSettings() == .defaults)
+        #expect(defaults.data(forKey: Store.settingsBackupKey) == broken)
+    }
+
+    @Test func statsRoundTrip() {
+        let store = Store(defaults: freshDefaults())
+        var stats = DailyStats()
+        stats.record(taken: 2, snoozed: 1, on: Date(), calendar: .current)
+        store.save(stats)
+        #expect(store.loadStats() == stats)
+    }
+}
+```
+
+Run: `swift test 2>&1 | grep -E "error:" | head -3` → `cannot find 'Store' in scope`.
+
+- [ ] **Step 2: Write the probes**
+
+`Sources/Nudgie/Probes/Sampling.swift`:
+```swift
+import Foundation
+import NudgieCore
+
+/// What the coordinator needs from the OS, as two tiny protocols so tests can substitute fakes.
+protocol ActivitySampling {
+    func sample() -> ActivityState
+}
+
+protocol QuietSampling {
+    func sample(now: Date) -> QuietState
+}
+```
 
 `Sources/Nudgie/Probes/ActivityProbe.swift`:
 ```swift
@@ -1643,7 +1769,7 @@ import CoreGraphics
 import NudgieCore
 
 /// Idle time from CoreGraphics; lock and sleep from system notifications.
-final class ActivityProbe {
+final class ActivityProbe: ActivitySampling {
     private(set) var isLocked = false
     private(set) var isAsleep = false
     private var tokens: [NSObjectProtocol] = []
@@ -1690,7 +1816,7 @@ import os
 
 /// Camera and mic "is running somewhere" flags plus the frontmost app.
 /// We never open a device, so no permission prompt appears.
-final class QuietProbe {
+final class QuietProbe: QuietSampling {
     static let deviceCheckInterval: TimeInterval = 2
     private static let log = Logger(subsystem: "com.gouravkakkar.nudgie", category: "probe")
     private static var loggedCameraFailure = false
@@ -1824,7 +1950,7 @@ enum ProbeRunner {
 }
 ```
 
-- [ ] **Step 2: Write the store**
+- [ ] **Step 3: Write the store**
 
 `Sources/Nudgie/Persistence/Store.swift`:
 ```swift
@@ -1871,7 +1997,7 @@ struct Store {
 }
 ```
 
-- [ ] **Step 3: Write the app entry, delegate and a minimal menu**
+- [ ] **Step 4: Write the app entry, delegate and a minimal menu**
 
 `Sources/Nudgie/AppDelegate.swift`:
 ```swift
@@ -1914,7 +2040,10 @@ if CommandLine.arguments.contains("--probe") {
 }
 ```
 
-- [ ] **Step 4: Build and verify against the real OS**
+- [ ] **Step 5: Test, build and verify against the real OS**
+
+Run: `swift test 2>&1 | tail -2`
+Expected: all pass (67 − 1 smoke + 4 store = 70).
 
 Run: `swift build 2>&1 | tail -1`
 Expected: `Build complete!`
@@ -1929,11 +2058,11 @@ Then, with the probe running in one terminal, open **Photo Booth** and confirm `
 
 Run the app itself: `swift run Nudgie` shows a face icon in the menu bar with a Quit item and no Dock icon. Quit it.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add Sources/Nudgie
-git commit -m "feat(app): add activity/quiet probes, store, --probe mode and app skeleton
+git add Sources/Nudgie Tests/NudgieAppTests
+git commit -m "feat(app): add activity/quiet probes, store with tests, --probe mode and app skeleton
 
 Verified on this Mac: camera flag flips with Photo Booth, mic flag with a call,
 front bundle id follows app switches, locked flag follows screen lock.
@@ -1948,17 +2077,148 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 **Files:**
 - Create: `Sources/Nudgie/Coordinator.swift`, `Sources/Nudgie/UI/MenuBarView.swift`
 - Modify: `Sources/Nudgie/AppDelegate.swift`, `Sources/Nudgie/NudgieApp.swift`
+- Test: `Tests/NudgieAppTests/CoordinatorTests.swift`
 
 **Interfaces:**
-- Consumes: `ActivityProbe`, `QuietProbe`, `Store` (Task 8); `TimerEngine`, `CardPlanner`, `CopyPicker`, `DailyStats`, `QuietPolicy` (Core).
+- Consumes: `ActivitySampling`, `QuietSampling`, `ActivityProbe`, `QuietProbe`, `Store` (Task 8); `TimerEngine`, `CardPlanner`, `CopyPicker`, `DailyStats`, `QuietPolicy` (Core).
 - Produces:
   - `enum EngineStatus: Equatable { case counting, quiet(QuietReason), paused(until: Date), offTheClock, away; var label: String }`
-  - `struct CardPresentation: Equatable { let plan: CardPlan; let headline: String; let startedAt: Date; var secondsLeft: Int; var accentKind: ReminderKind }`
+  - `struct CardPresentation: Equatable { let plan: CardPlan; let headline: String; let startedAt: Date; let isForced: Bool; var secondsLeft: Int; var accentKind: ReminderKind }`
   - `enum IconState: Equatable { case normal, blink, shh, zzz }`
-  - `@Observable final class Coordinator` with `settings`, `card: CardPresentation?`, `status`, `iconState`, `now`, `nextUp: [NextUp]`, `today: DailyStats.DayCount`, `onShowCard: (() -> Void)?`, `onHideCard: (() -> Void)?`, and methods `start(demo:)`, `tick()`, `didIt()`, `snooze()`, `close()`, `takeBreakNow()`, `pause(hours:)`, `pauseUntilTomorrow()`, `resume()`, `updateSettings(_:)`, `resetSettingsToDefaults()`.
+  - `@Observable final class Coordinator` with `init(store:activity:quiet:clock:)` (all defaulted to the real thing), `settings`, `card: CardPresentation?`, `status`, `iconState`, `now`, `nextUp: [NextUp]`, `today: DailyStats.DayCount`, `onShowCard: (() -> Void)?`, `onHideCard: (() -> Void)?`, and methods `start(demo:)`, `tick()`, `didIt()`, `snooze()`, `close()`, `takeBreakNow()`, `pause(hours:)`, `pauseUntilTomorrow()`, `resume()`, `updateSettings(_:)`, `resetSettingsToDefaults()`, plus pure helpers `static func status(outcome:quiet:)` and `static func icon(for:tick:)`.
   - `AppDelegate.coordinator` (the single instance), `AppDelegate.demoKind() -> ReminderKind?`.
 
-- [ ] **Step 1: Write the coordinator**
+- [ ] **Step 1: Write the failing coordinator tests**
+
+`Tests/NudgieAppTests/CoordinatorTests.swift`:
+```swift
+import Foundation
+import Testing
+import NudgieCore
+@testable import Nudgie
+
+@MainActor final class FakeActivity: ActivitySampling {
+    var state = ActivityState()
+    func sample() -> ActivityState { state }
+}
+
+@MainActor final class FakeQuiet: QuietSampling {
+    var state = QuietState()
+    func sample(now: Date) -> QuietState { state }
+}
+
+@MainActor final class FakeClock {
+    var now = Date(timeIntervalSince1970: 1_800_000_000)
+}
+
+@MainActor @Suite struct CoordinatorTests {
+    struct Rig {
+        let coordinator: Coordinator
+        let activity: FakeActivity
+        let quiet: FakeQuiet
+        let clock: FakeClock
+
+        /// Drive the heartbeat one second at a time, like the real Timer would.
+        func advance(_ seconds: Int) {
+            for _ in 0..<seconds {
+                clock.now = clock.now.addingTimeInterval(1)
+                coordinator.tick()
+            }
+        }
+    }
+
+    func makeRig() -> Rig {
+        let defaults = UserDefaults(suiteName: "nudgie.tests.\(UUID().uuidString)")!
+        let activity = FakeActivity()
+        let quiet = FakeQuiet()
+        let clock = FakeClock()
+        let coordinator = Coordinator(store: Store(defaults: defaults), activity: activity, quiet: quiet,
+                                      clock: { clock.now })
+        return Rig(coordinator: coordinator, activity: activity, quiet: quiet, clock: clock)
+    }
+
+    @Test func statusMapping() {
+        #expect(Coordinator.status(outcome: .counting, quiet: nil) == .counting)
+        #expect(Coordinator.status(outcome: .counting, quiet: .micBusy) == .quiet(.micBusy))
+        #expect(Coordinator.status(outcome: .offTheClock, quiet: .micBusy) == .offTheClock)
+        #expect(Coordinator.status(outcome: .away, quiet: nil) == .away)
+        #expect(Coordinator.status(outcome: .resetAfterAway, quiet: nil) == .away)
+    }
+
+    @Test func iconMapping() {
+        #expect(Coordinator.icon(for: .quiet(.cameraBusy), tick: 5) == .shh)
+        #expect(Coordinator.icon(for: .paused(until: .distantFuture), tick: 5) == .zzz)
+        #expect(Coordinator.icon(for: .offTheClock, tick: 5) == .zzz)
+        #expect(Coordinator.icon(for: .counting, tick: 30) == .blink)
+        #expect(Coordinator.icon(for: .counting, tick: 31) == .normal)
+    }
+
+    @Test func eyesCardAppearsAfterTwentyActiveMinutesAndCountsWhenTheRingRunsOut() {
+        let rig = makeRig()
+        rig.advance(20 * 60)
+        #expect(rig.coordinator.card?.plan.kinds == [.eyes])
+        #expect(rig.coordinator.card?.isForced == false)
+        rig.advance(20)
+        #expect(rig.coordinator.card == nil)
+        #expect(rig.coordinator.today.taken == 1)
+    }
+
+    @Test func meetingHidesTheCardAndItReturnsAfterTheSettleGap() {
+        let rig = makeRig()
+        rig.advance(20 * 60)
+        #expect(rig.coordinator.card != nil)
+        rig.quiet.state.cameraBusy = true
+        rig.advance(1)
+        #expect(rig.coordinator.card == nil)
+        #expect(rig.coordinator.status == .quiet(.cameraBusy))
+        rig.quiet.state.cameraBusy = false
+        rig.advance(29)
+        #expect(rig.coordinator.card == nil)      // still inside the 30 s settle gap
+        rig.advance(2)
+        #expect(rig.coordinator.card?.plan.kinds == [.eyes])
+    }
+
+    @Test func takeABreakNowSurvivesAMeeting() {
+        let rig = makeRig()
+        rig.quiet.state.micBusy = true
+        rig.advance(1)
+        rig.coordinator.takeBreakNow()
+        #expect(rig.coordinator.card?.isForced == true)
+        rig.advance(5)
+        #expect(rig.coordinator.card != nil)
+    }
+
+    @Test func snoozeCountsAndReschedules() {
+        let rig = makeRig()
+        rig.advance(20 * 60)
+        rig.coordinator.snooze()
+        #expect(rig.coordinator.card == nil)
+        #expect(rig.coordinator.today.snoozed == 1)
+        #expect(rig.coordinator.nextUp.first { $0.kind == .eyes }?.seconds == 300)
+    }
+
+    @Test func pauseHidesTheCardAndReportsPaused() {
+        let rig = makeRig()
+        rig.advance(20 * 60)
+        rig.coordinator.pause(hours: 1)
+        #expect(rig.coordinator.card == nil)
+        guard case .paused = rig.coordinator.status else {
+            Issue.record("expected paused, got \(rig.coordinator.status)")
+            return
+        }
+    }
+
+    @Test func dueTextFormats() {
+        #expect(MenuBarView.dueText(0) == "now")
+        #expect(MenuBarView.dueText(30) == "in 1 min")
+        #expect(MenuBarView.dueText(61) == "in 2 min")
+    }
+}
+```
+
+Run: `swift test 2>&1 | grep -E "error:" | head -3` → `cannot find 'Coordinator' in scope`.
+
+- [ ] **Step 2: Write the coordinator**
 
 `Sources/Nudgie/Coordinator.swift`:
 ```swift
@@ -1991,6 +2251,8 @@ struct CardPresentation: Equatable {
     let plan: CardPlan
     let headline: String
     let startedAt: Date
+    /// "Take a break now" cards are not hidden by a meeting: the user asked for them.
+    let isForced: Bool
     var secondsLeft: Int
 
     /// The first reminder sets the card's colour and mascot pose.
@@ -2022,15 +2284,22 @@ final class Coordinator {
 
     private var copy = CopyPicker()
     private let store: Store
-    private let activityProbe = ActivityProbe()
-    private let quietProbe = QuietProbe()
+    private let activityProbe: any ActivitySampling
+    private let quietProbe: any QuietSampling
+    private let clock: () -> Date
     private var timer: Timer?
     private var tickCount = 0
     private let calendar = Calendar.current
     private let verbose = CommandLine.arguments.contains("--verbose")
 
-    init(store: Store = Store()) {
+    init(store: Store = Store(),
+         activity: any ActivitySampling = ActivityProbe(),
+         quiet: any QuietSampling = QuietProbe(),
+         clock: @escaping () -> Date = { Date() }) {
         self.store = store
+        self.activityProbe = activity
+        self.quietProbe = quiet
+        self.clock = clock
         settings = store.loadSettings()
         engine = TimerEngine(settings: settings)
         stats = store.loadStats()
@@ -2049,7 +2318,7 @@ final class Coordinator {
     // MARK: Heartbeat
 
     func tick() {
-        now = Date()
+        now = clock()
         tickCount += 1
         let activity = activityProbe.sample()
         let quietReason = QuietPolicy.reason(for: quietProbe.sample(now: now), settings: settings)
@@ -2064,7 +2333,8 @@ final class Coordinator {
         }
 
         if let current = card {
-            if quietReason != nil || engineStopped {
+            // A meeting hides a scheduled card (it stays pending); a forced card stays up.
+            if engineStopped || (quietReason != nil && !current.isForced) {
                 hideCard()
                 return
             }
@@ -2077,9 +2347,10 @@ final class Coordinator {
         }
     }
 
-    private func show(_ plan: CardPlan) {
+    private func show(_ plan: CardPlan, forced: Bool = false) {
         let headline = copy.line(for: plan.kinds[0])
-        card = CardPresentation(plan: plan, headline: headline, startedAt: now, secondsLeft: plan.countdownSeconds)
+        card = CardPresentation(plan: plan, headline: headline, startedAt: now, isForced: forced,
+                                secondsLeft: plan.countdownSeconds)
         log("show \(plan.kinds.map(\.rawValue)) for \(plan.countdownSeconds)s")
         onShowCard?()
     }
@@ -2123,7 +2394,7 @@ final class Coordinator {
         guard card == nil, let soonest = nextUp.min(by: { $0.seconds < $1.seconds }) else { return }
         engine.triggerNow(soonest.kind)
         if let plan = planner.forcePlan(kinds: [soonest.kind], settings: settings) {
-            show(plan)
+            show(plan, forced: true)
         }
     }
 
@@ -2192,7 +2463,7 @@ final class Coordinator {
 }
 ```
 
-- [ ] **Step 2: Write the menu**
+- [ ] **Step 3: Write the menu**
 
 `Sources/Nudgie/UI/MenuBarView.swift`:
 ```swift
@@ -2232,7 +2503,7 @@ struct MenuBarView: View {
 }
 ```
 
-- [ ] **Step 3: Wire the delegate and app**
+- [ ] **Step 4: Wire the delegate and app**
 
 `Sources/Nudgie/AppDelegate.swift` (replace):
 ```swift
@@ -2278,7 +2549,10 @@ struct NudgieApp: App {
 }
 ```
 
-- [ ] **Step 4: Build and verify by running**
+- [ ] **Step 5: Test, build and verify by running**
+
+Run: `swift test 2>&1 | tail -2`
+Expected: all pass (70 + 8 = 78).
 
 Run: `swift build 2>&1 | grep -E "error|warning: var|Build complete" | head`
 Expected: `Build complete!` and no errors.
@@ -2286,11 +2560,11 @@ Expected: `Build complete!` and no errors.
 Run: `swift run Nudgie --verbose --demo eyes`
 Expected within 2 seconds: `[nudgie] show ["eyes"] for 20s`, then after 20 more seconds `[nudgie] hide`. While it runs, click the face icon: the menu shows "Counting", five "in N min" rows (Eyes shows "now" during the demo), a "Today:" line, Take a break now, Pause, Settings…, Quit. Choose Pause → For 1 hour: the status line changes to "Paused until …" and the rows show "in 20 min" etc. again (timers were reset). Choose Pause → Resume. Quit with ⌘Q from the menu.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add Sources/Nudgie
-git commit -m "feat(app): add Coordinator heartbeat and menu bar menu
+git add Sources/Nudgie Tests/NudgieAppTests
+git commit -m "feat(app): add Coordinator heartbeat with tests and the menu bar menu
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
@@ -3083,6 +3357,13 @@ struct MeetingsTab: View {
             }
         }
         .formStyle(.grouped)
+        // Keep the window valid: end always after start, otherwise "Off the clock" would never end.
+        .onChange(of: draft.workHours.startMinute) { _, start in
+            if draft.workHours.endMinute <= start { draft.workHours.endMinute = min(start + 30, 24 * 60) }
+        }
+        .onChange(of: draft.workHours.endMinute) { _, end in
+            if draft.workHours.startMinute >= end { draft.workHours.startMinute = max(end - 30, 0) }
+        }
     }
 
     private var runningApps: [RunningApp] {
@@ -3189,7 +3470,7 @@ Run: `swift build 2>&1 | grep -E "error|Build complete" | head` → `Build compl
 Run `swift run Nudgie`, open the menu, choose Settings…:
 1. Reminders: toggle Eyes off. Open the menu again: the Eyes row is gone. Toggle it back on. Step "Every" for Water to 50: the menu's Water row shows a new time on next open.
 2. Meetings: add `com.apple.TextEdit` via the Running app… menu (open TextEdit first). Click into TextEdit; the status line reads "Quiet: Meeting app in front". Remove it with the ✕; status returns to "Counting". Reset list to defaults restores 19 entries.
-3. Work hours: switch on, set a window that excludes now; status reads "Off the clock". Switch off.
+3. Work hours: switch on, set a window that excludes now; status reads "Off the clock". Step "From" up past "To": "To" moves with it and stays 30 min later. Switch off.
 4. General: pick "Glass", click Play, hear it. Toggle Launch at login: expect the red note (not bundled yet); Task 13 makes it work. Reset everything to defaults: all tabs return to defaults.
 5. Quit and relaunch: settings persisted (check the water interval you changed).
 

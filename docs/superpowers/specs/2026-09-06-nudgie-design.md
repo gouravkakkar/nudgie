@@ -160,7 +160,8 @@ default 5 min.
   Reading without touching the mouse still counts, on purpose.
 - **Away reset:** once the user has been away (idle, locked or asleep) for 5
   minutes or more, every accumulator resets to zero. The away time was the
-  break.
+  break. A gap of 5 minutes or more between two heartbeats (the Mac slept, so
+  no heartbeat saw the away stretch) counts the same way.
 - **Due:** when a reminder's accumulator reaches its interval it becomes
   *pending*. A reminder has at most one pending entry, so a 1-hour meeting
   produces one eye reminder afterwards, not three.
@@ -265,7 +266,8 @@ twice in a row. Starter set:
   "Off the clock".
 - Next up: one row per enabled reminder, e.g. "👀 Eyes in 12 min".
 - "Today: 7 breaks taken, 2 snoozed."
-- Take a break now (shows the card for the reminder that is due soonest).
+- Take a break now (shows the card for the reminder that is due soonest, even
+  during a meeting; a card you asked for is never hidden by the quiet rules).
 - Pause ▸ 1 hour / Until tomorrow / Resume.
 - Settings… (⌘,), About Nudgie, Quit.
 
@@ -292,7 +294,10 @@ corner:
   frontmost: nil) and logs once through `os.Logger`. The app never
   crashes because the OS refused a query.
 - If the settings JSON fails to decode, defaults are used and the broken blob
-  is kept under a backup key.
+  is kept under a backup key. Out-of-range numbers in the JSON are clamped
+  (interval 5–180 min, break 0–3600 s, snooze 1–30 min).
+- The settings window keeps the work-hours end after the start, so a window
+  can never be empty.
 - If the screen with the menu bar disappears (display unplugged), the card
   re-anchors to the new main screen on next show.
 
@@ -315,6 +320,11 @@ corner:
 **Verification against the real OS** (your contract-discipline rule: the
 consumer must be proven against the real producer, not a mock):
 
+- The app layer is unit-tested too (`NudgieAppTests`): the store's round trip
+  and broken-JSON fallback, and the coordinator's card lifecycle (show after
+  20 active minutes, hide when a meeting starts, return after the settle gap,
+  forced card survives a meeting, snooze and pause) driven by fake probes and
+  a fake clock.
 - `Nudgie --probe` prints live values every second: idle seconds, locked,
   frontmost bundle id, camera busy, mic busy. Used to confirm detection on
   this Mac with FaceTime, Chrome and a browser tab using the camera.
