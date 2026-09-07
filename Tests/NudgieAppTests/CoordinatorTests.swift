@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import Testing
 import NudgieCore
@@ -15,6 +16,11 @@ import NudgieCore
 
 @MainActor final class FakeClock {
     var now = Date(timeIntervalSince1970: 1_800_000_000)
+}
+
+/// `withObservationTracking`'s onChange is @Sendable, so the flag it sets cannot be a local var.
+final class WriteFlag: @unchecked Sendable {
+    var didWrite = false
 }
 
 /// Records the sound names the coordinator asks to play, instead of playing real system sounds.
@@ -73,6 +79,26 @@ import NudgieCore
         rig.activity.state = ActivityState()
         rig.advance(1)                                // back at the keyboard: the breathing gap passed while locked
         #expect(rig.coordinator.card?.plan.kinds == [.eyes])
+    }
+
+    /// The menu bar rebuilds its NSMenu whenever this observable state is written, and a
+    /// rebuild closes any open submenu. Equal values are not enough: @Observable notifies on
+    /// every assignment, so the test watches for the write itself, not for a changed value.
+    @Test func menuStateIsNotWrittenBetweenVisibleChanges() {
+        let rig = makeRig()
+        defer { rig.cleanUp() }
+        rig.advance(1)
+        #expect(!rig.coordinator.menu.lines.isEmpty, "expected countdown lines to be showing")
+
+        let quiet = WriteFlag()
+        withObservationTracking { _ = rig.coordinator.menu } onChange: { quiet.didWrite = true }
+        rig.advance(10)   // same minute throughout: nothing on screen changes
+        #expect(!quiet.didWrite, "menu was written with nothing visibly changed; an open submenu would close")
+
+        let moving = WriteFlag()
+        withObservationTracking { _ = rig.coordinator.menu } onChange: { moving.didWrite = true }
+        rig.advance(120)  // the minute counters move, so the menu must follow
+        #expect(moving.didWrite, "menu stopped tracking the countdown")
     }
 
     @Test func disablingAReminderRemovesItFromTheCard() {

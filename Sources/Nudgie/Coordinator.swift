@@ -39,6 +39,24 @@ struct CardPresentation: Equatable {
     var accentKind: ReminderKind { plan.kinds[0] }
 }
 
+/// Exactly what the menu bar shows, as finished strings.
+///
+/// The heartbeat writes observable state every second, and `MenuBarExtra(.menu)` rebuilds its
+/// NSMenu whenever the SwiftUI body re-evaluates. A rebuild closes any open submenu, so a menu
+/// that tracked the raw countdown was impossible to click through. The menu reads this instead,
+/// and `tick` only assigns it when a visible string actually changes.
+struct MenuSnapshot: Equatable {
+    struct Line: Equatable, Identifiable {
+        let kind: ReminderKind
+        let text: String
+        var id: ReminderKind { kind }
+    }
+    var statusLabel = ""
+    var lines: [Line] = []
+    var todayLine = ""
+    var canTakeBreakNow = false
+}
+
 /// A later task caches menu-bar images by state, hence `Hashable`.
 enum IconState: Hashable { case normal, blink, shh, zzz }
 
@@ -68,6 +86,7 @@ final class Coordinator {
     private let activityProbe: any ActivitySampling
     private let quietProbe: any QuietSampling
     private let clock: () -> Date
+    private(set) var menu = MenuSnapshot()
     private var timer: Timer?
     private var tickCount = 0
     private let calendar = Calendar.current
@@ -136,6 +155,7 @@ final class Coordinator {
         planner.observe(quiet: quietReason != nil, now: now)
         status = Self.status(outcome: outcome, quiet: quietReason)
         iconState = Self.icon(for: status, tick: tickCount)
+        refreshMenu()
 
         let engineStopped: Bool = switch outcome {
         case .counting, .away: false
@@ -293,6 +313,18 @@ final class Coordinator {
 
     var today: DailyStats.DayCount {
         stats.count(on: now, calendar: calendar)
+    }
+
+    /// Assigning to an @Observable property notifies observers even when the value is unchanged,
+    /// so the equality check is what actually keeps the menu still.
+    private func refreshMenu() {
+        let counts = today
+        let fresh = MenuSnapshot(
+            statusLabel: status.label,
+            lines: nextUp.map { MenuSnapshot.Line(kind: $0.kind, text: MenuBarView.dueText($0.seconds)) },
+            todayLine: "Today: \(counts.taken) breaks taken, \(counts.snoozed) snoozed",
+            canTakeBreakNow: canTakeBreakNow)
+        if fresh != menu { menu = fresh }
     }
 
     // MARK: Helpers

@@ -5,20 +5,24 @@ struct MenuBarView: View {
     let coordinator: Coordinator
 
     var body: some View {
-        Text(coordinator.status.label)
+        // Everything here reads `coordinator.menu`, never the per-second countdown state: see
+        // MenuSnapshot for why the menu must not re-render on the heartbeat.
+        let menu = coordinator.menu
+        Text(menu.statusLabel)
         Divider()
-        ForEach(coordinator.nextUp, id: \.kind) { item in
-            Text("\(item.kind.emoji) \(item.kind.title) \(Self.dueText(item.seconds))")
+        ForEach(menu.lines) { line in
+            Text("\(line.kind.emoji) \(line.kind.title) \(line.text)")
         }
-        Text("Today: \(coordinator.today.taken) breaks taken, \(coordinator.today.snoozed) snoozed")
+        Text(menu.todayLine)
         Divider()
         Button("Take a break now") { coordinator.takeBreakNow() }
-            .disabled(!coordinator.canTakeBreakNow)
-        Menu("Pause") {
-            Button("For 1 hour") { coordinator.pause(hours: 1) }
-            Button("Until tomorrow") { coordinator.pauseUntilTomorrow() }
-            Button("Resume") { coordinator.resume() }
-        }
+            .disabled(!menu.canTakeBreakNow)
+        // Flat, not a "Pause" submenu. A submenu is torn down whenever the NSMenu is rebuilt,
+        // and the menu still rebuilds when a countdown line changes, which left the submenu
+        // flickering and unclickable. Top-level items survive a rebuild.
+        Button("Pause for 1 hour") { coordinator.pause(hours: 1) }
+        Button("Pause until tomorrow") { coordinator.pauseUntilTomorrow() }
+        Button("Resume") { coordinator.resume() }
         Divider()
         SettingsLink { Text("Settings…") }
             .keyboardShortcut(",")
