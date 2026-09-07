@@ -22,7 +22,20 @@ Appears in the top-right corner of the screen with the menu bar, over any app, w
 - **✕** closes without counting; the timer restarts.
 - When the ring runs out, the break counts as taken. Water and posture cards show for 30 seconds.
 - If several reminders are due together they share one card, and the buttons apply to all of them.
-- Cards are at least 30 seconds apart, and wait 30 seconds after a meeting ends.
+- Cards are at least **30 minutes** apart by default, and wait 30 seconds after a meeting ends.
+
+### How far apart cards come
+
+Settings → Reminders → **Pacing** sets the shortest time between two cards. The default is 30 minutes.
+
+Anything that falls due inside that gap does not queue up behind it. It waits, and arrives on the next card together with everything else that came due, so you get one nudge listing three things rather than three nudges in a row.
+
+Two things worth knowing:
+
+- **A gap wider than a reminder's own interval overrides it.** Eyes asks for every 20 minutes, so with a 30-minute gap it actually arrives every 30. The Pacing section says so in orange when this applies. Lower the gap to 20 if you want the 20-20-20 rule kept exactly.
+- **A card that never reached you does not start the clock.** If a meeting, a locked screen or a pause takes a card off the screen before you act on it, that reminder stays pending and comes back; only a card you actually saw through (Did it, snooze, ✕, or the ring running out) begins the gap.
+
+Set the gap to 0 to turn the floor off, leaving only the original 30-second breather between cards.
 
 ## Quiet during meetings
 

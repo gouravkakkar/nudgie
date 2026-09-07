@@ -17,6 +17,7 @@ import Testing
         #expect(s.quietAppPrefixes.contains("us.zoom.xos"))
         #expect(!s.workHours.isEnabled)
         #expect(s.snoozeMinutes == 5)
+        #expect(s.minimumGapMinutes == 30)
         #expect(s.soundEnabled)
         #expect(s.soundName == "Pop")
         #expect(!s.launchAtLogin)
@@ -27,6 +28,7 @@ import Testing
         var s = NudgieSettings.defaults
         s.setReminder(ReminderSetting(isEnabled: false, intervalMinutes: 33, breakSeconds: 7), for: .walk)
         s.snoozeMinutes = 9
+        s.minimumGapMinutes = 45
         s.workHours = WorkHours(isEnabled: true, startMinute: 8 * 60, endMinute: 17 * 60, weekdays: [2, 3])
         let data = try s.encoded()
         #expect(NudgieSettings.decode(data) == s)
@@ -41,9 +43,10 @@ import Testing
     }
 
     @Test func unknownFieldsAreIgnoredAndMissingFieldsGetDefaults() {
-        let json = #"{"version":1,"snoozeMinutes":12,"someFutureField":true}"#
+        let json = #"{"version":1,"snoozeMinutes":12,"someFutureField":true}"#   // no minimumGapMinutes: written before it existed
         let s = NudgieSettings.decode(Data(json.utf8))
         #expect(s?.snoozeMinutes == 12)
+        #expect(s?.minimumGapMinutes == 30)
         #expect(s?.soundName == "Pop")
         #expect(s?.reminder(.eyes).intervalMinutes == 20)
     }
@@ -60,9 +63,10 @@ import Testing
     }
 
     @Test func decodeClampsOutOfRangeValues() {
-        let json = #"{"snoozeMinutes":0,"reminders":{"eyes":{"isEnabled":true,"intervalMinutes":0,"breakSeconds":99999}}}"#
+        let json = #"{"snoozeMinutes":0,"minimumGapMinutes":9999,"reminders":{"eyes":{"isEnabled":true,"intervalMinutes":0,"breakSeconds":99999}}}"#
         let s = NudgieSettings.decode(Data(json.utf8))
         #expect(s?.snoozeMinutes == 1)
+        #expect(s?.minimumGapMinutes == 120)
         #expect(s?.reminder(.eyes).intervalMinutes == 5)
         #expect(s?.reminder(.eyes).breakSeconds == 3600)
     }

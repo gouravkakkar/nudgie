@@ -77,6 +77,8 @@ public struct NudgieSettings: Codable, Equatable, Sendable {
     public static let intervalRange = 5...180
     public static let breakRange = 0...3600
     public static let snoozeRange = 1...30
+    /// 0 disables the floor, leaving only the planner's 30-second breathing gap.
+    public static let minimumGapRange = 0...120
     public static let defaultQuietAppPrefixes: [String] = [
         // Browsers
         "com.apple.Safari", "com.google.Chrome", "org.chromium.Chromium",
@@ -96,6 +98,9 @@ public struct NudgieSettings: Codable, Equatable, Sendable {
     public var quietAppPrefixes: [String]
     public var workHours: WorkHours
     public var snoozeMinutes: Int
+    /// Shortest time between two cards appearing. Reminders that fall due inside the gap
+    /// wait and arrive together on the next card rather than queueing up behind it.
+    public var minimumGapMinutes: Int
     public var soundEnabled: Bool
     public var soundName: String
     public var launchAtLogin: Bool
@@ -109,6 +114,7 @@ public struct NudgieSettings: Codable, Equatable, Sendable {
         quietAppPrefixes: [String] = NudgieSettings.defaultQuietAppPrefixes,
         workHours: WorkHours = WorkHours(),
         snoozeMinutes: Int = 5,
+        minimumGapMinutes: Int = 30,
         soundEnabled: Bool = true,
         soundName: String = "Pop",
         launchAtLogin: Bool = false
@@ -120,6 +126,7 @@ public struct NudgieSettings: Codable, Equatable, Sendable {
         self.quietAppPrefixes = quietAppPrefixes
         self.workHours = workHours
         self.snoozeMinutes = snoozeMinutes
+        self.minimumGapMinutes = minimumGapMinutes
         self.soundEnabled = soundEnabled
         self.soundName = soundName
         self.launchAtLogin = launchAtLogin
@@ -156,10 +163,14 @@ public struct NudgieSettings: Codable, Equatable, Sendable {
         quietAppPrefixes = try c.decodeIfPresent([String].self, forKey: .quietAppPrefixes) ?? d.quietAppPrefixes
         workHours = try c.decodeIfPresent(WorkHours.self, forKey: .workHours) ?? d.workHours
         snoozeMinutes = Self.clamp(try c.decodeIfPresent(Int.self, forKey: .snoozeMinutes) ?? d.snoozeMinutes, to: Self.snoozeRange)
+        minimumGapMinutes = Self.clamp(try c.decodeIfPresent(Int.self, forKey: .minimumGapMinutes) ?? d.minimumGapMinutes,
+                                      to: Self.minimumGapRange)
         soundEnabled = try c.decodeIfPresent(Bool.self, forKey: .soundEnabled) ?? d.soundEnabled
         soundName = try c.decodeIfPresent(String.self, forKey: .soundName) ?? d.soundName
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
     }
+
+    public var minimumGapSeconds: Double { Double(minimumGapMinutes) * 60 }
 
     public func reminder(_ kind: ReminderKind) -> ReminderSetting {
         reminders[kind] ?? ReminderSetting.default(for: kind)

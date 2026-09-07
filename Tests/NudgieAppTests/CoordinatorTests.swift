@@ -78,13 +78,30 @@ import NudgieCore
     @Test func disablingAReminderRemovesItFromTheCard() {
         let rig = makeRig()
         defer { rig.cleanUp() }
+        var s = rig.coordinator.settings
+        s.minimumGapMinutes = 0                       // this test is about disabling, not spacing
+        rig.coordinator.updateSettings(s)
         rig.advance(30 * 60)                          // eyes card came and finished at 20:20; posture card is up now
         #expect(rig.coordinator.card?.plan.kinds == [.posture])
-        var s = rig.coordinator.settings
-        s.setReminder(ReminderSetting(isEnabled: false, intervalMinutes: 30, breakSeconds: 0), for: .posture)
-        rig.coordinator.updateSettings(s)
+        var off = rig.coordinator.settings
+        off.setReminder(ReminderSetting(isEnabled: false, intervalMinutes: 30, breakSeconds: 0), for: .posture)
+        rig.coordinator.updateSettings(off)
         #expect(rig.coordinator.card == nil)
         #expect(rig.coordinator.today.taken == 1)     // only the eyes card that ran its ring down
+    }
+
+    @Test func cardsAreAtLeastThirtyMinutesApartAndArriveTogether() {
+        let rig = makeRig()
+        defer { rig.cleanUp() }
+        rig.advance(20 * 60)                          // eyes due at 20:00
+        #expect(rig.coordinator.card?.plan.kinds == [.eyes])
+        rig.coordinator.didIt()
+        // Posture (30:00), eyes again (40:00) and water (45:00) all fall due inside the gap.
+        rig.advance(25 * 60)                          // 45:00
+        #expect(rig.coordinator.card == nil)
+        rig.advance(5 * 60)                           // 50:00, thirty minutes after the eyes card
+        // One card carrying all three, in the order they came due, not three fired in a row.
+        #expect(rig.coordinator.card?.plan.kinds == [.posture, .eyes, .water])
     }
 
     @Test func disablingOneKindOfAGroupedCardKeepsTheCountdownConsistent() {

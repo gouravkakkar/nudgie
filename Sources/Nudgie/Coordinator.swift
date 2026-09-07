@@ -109,7 +109,7 @@ final class Coordinator {
         // itself, so guard on it here before forcing the card.
         if let demo, settings.reminder(demo).isEnabled {
             engine.triggerNow(demo)
-            if let plan = planner.forcePlan(kinds: [demo], settings: settings) {
+            if let plan = planner.forcePlan(kinds: [demo], settings: settings, now: Date()) {
                 show(plan, forced: true)
             }
         }
@@ -144,7 +144,7 @@ final class Coordinator {
         if let current = card {
             // A meeting hides a scheduled card (it stays pending); a forced card stays up.
             if engineStopped || screenGone || (quietReason != nil && !current.isForced) {
-                hideCard()
+                hideCard(delivered: false)
                 return
             }
             let elapsed = Int(now.timeIntervalSince(current.startedAt).rounded(.down))
@@ -168,10 +168,12 @@ final class Coordinator {
         onShowCard?()
     }
 
-    private func hideCard() {
+    /// `delivered: false` when the card was taken off the screen rather than acted on, so
+    /// the nudge the user never saw does not start the minimum gap before the next one.
+    private func hideCard(delivered: Bool = true) {
         guard card != nil else { return }
         card = nil
-        planner.cardDismissed(now: now)
+        planner.cardDismissed(now: now, delivered: delivered)
         log("hide")
         onHideCard?()
     }
@@ -207,19 +209,19 @@ final class Coordinator {
     func takeBreakNow() {
         guard canTakeBreakNow, let soonest = nextUp.min(by: { $0.seconds < $1.seconds }) else { return }
         engine.triggerNow(soonest.kind)
-        if let plan = planner.forcePlan(kinds: [soonest.kind], settings: settings) {
+        if let plan = planner.forcePlan(kinds: [soonest.kind], settings: settings, now: Date()) {
             show(plan, forced: true)
         }
     }
 
     func pause(hours: Double) {
-        hideCard()
+        hideCard(delivered: false)
         engine.pause(until: now.addingTimeInterval(hours * 3600))
         tick()
     }
 
     func pauseUntilTomorrow() {
-        hideCard()
+        hideCard(delivered: false)
         let tomorrow = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: now) ?? now)
         engine.pause(until: tomorrow)
         tick()
@@ -242,7 +244,7 @@ final class Coordinator {
         guard let current = card else { return }
         let kept = current.plan.kinds.filter { settings.reminder($0).isEnabled }
         if kept.isEmpty {
-            hideCard()
+            hideCard(delivered: false)
         } else if kept != current.plan.kinds {
             let longest = kept.map { settings.reminder($0).breakSeconds }.max() ?? 0
             let plan = CardPlan(kinds: kept,

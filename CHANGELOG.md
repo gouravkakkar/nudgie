@@ -2,6 +2,10 @@
 
 ## 0.1.1 — unreleased
 
+### Added
+
+- **Pacing:** cards are now at least 30 minutes apart by default (Settings → Reminders → Pacing, 0 to turn it off). Reminders that fall due inside the gap wait and arrive together on one card instead of firing one after another. A card taken off the screen by a meeting, a locked screen or a pause does not start the gap, because it never reached you. Note that a gap wider than a reminder's own interval overrides it: at the default, the 20-minute eye break arrives every 30 minutes, and Settings says so.
+
 ### Fixed
 
 - The quiet face now presses its lips into a straight line instead of making an "o" shape.

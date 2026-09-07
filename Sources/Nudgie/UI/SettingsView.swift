@@ -41,6 +41,15 @@ struct RemindersTab: View {
 
     var body: some View {
         Form {
+            Section("Pacing") {
+                Stepper(gapLabel, value: $draft.minimumGapMinutes,
+                        in: NudgieSettings.minimumGapRange, step: 5)
+                Text("Anything that falls due inside the gap waits and arrives on the next card, so several reminders come as one nudge instead of a run of them.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let squeezed {
+                    Text(squeezed).font(.caption).foregroundStyle(.orange)
+                }
+            }
             ForEach(ReminderKind.allCases, id: \.self) { kind in
                 Section {
                     Toggle(isOn: binding(kind).isEnabled) {
@@ -58,6 +67,22 @@ struct RemindersTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var gapLabel: String {
+        draft.minimumGapMinutes == 0
+            ? "No minimum gap between cards"
+            : "At least \(draft.minimumGapMinutes) min between cards"
+    }
+
+    /// A gap wider than a reminder's own interval quietly overrides it. Say so rather than
+    /// letting someone wonder why their 20 minute eye break arrives every 30.
+    private var squeezed: String? {
+        let tight = draft.enabledKinds
+            .filter { draft.reminder($0).intervalMinutes < draft.minimumGapMinutes }
+        guard !tight.isEmpty else { return nil }
+        let names = tight.map(\.title).joined(separator: ", ")
+        return "\(names) asked for less than this, so \(tight.count == 1 ? "it comes" : "they come") every \(draft.minimumGapMinutes) min instead."
     }
 
     private func binding(_ kind: ReminderKind) -> Binding<ReminderSetting> {

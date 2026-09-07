@@ -33,5 +33,9 @@ Run through this before tagging a release. Tick each line.
 - [ ] Reset everything to defaults restores all tabs.
 - [ ] `make app` → `codesign -dv` says adhoc; app has the face icon; no Dock icon.
 - [ ] Launch at login from the built app: appears in System Settings → Login Items.
+- [ ] With default settings, take an eyes card at 20 min, then confirm nothing appears again until 30 min after it, and that the next card lists every reminder that fell due in between.
+- [ ] Settings → Reminders → Pacing: set the gap above a reminder's interval and check the orange line names that reminder.
+- [ ] Set the gap to 0 and confirm cards return to the old 30-second spacing.
+- [ ] Open Photo Booth while a card is up: the card hides, and when the meeting ends it comes back after the settle gap rather than waiting out the full 30 minutes.
 - [ ] Menu bar face blinks about every 30 s; shows open eyes and a straight-line mouth while Photo Booth is open; shows closed eyes with a z while paused.
 - [ ] Settings window: every tab renders, toggles and steppers change the menu's next-up rows, work-hours "To" follows "From" past it, changes survive a relaunch.
