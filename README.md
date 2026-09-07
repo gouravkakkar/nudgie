@@ -65,7 +65,10 @@ make install
 make test     # unit tests for the core logic
 make app      # build/Nudgie.app
 make run      # build and launch it
+make notarize # sign, send to Apple, staple: build/Nudgie.app.zip
 ```
+
+`make app` signs with a Developer ID Application certificate if this Mac has one, and falls back to an ad-hoc signature if it does not, so you never need one just to build. Cutting a public release does need one: [docs/releasing.md](docs/releasing.md) has the whole path, including the GitHub secrets the tag build uses.
 
 `swift run Nudgie --probe` prints the live detector values (idle time, lock, camera, mic, front app) so you can check meeting detection on your Mac. `swift run Nudgie --demo eyes` shows a card at once.
 

@@ -18,3 +18,4 @@ Point 3 is what keeps Nudgie free for everyone while letting one person, the aut
 - Run `make test` before pushing. Core logic changes need tests in `Tests/NudgieCoreTests`.
 - Keep the app free of network calls and third-party dependencies.
 - Follow the spec in `docs/superpowers/specs/` for behaviour and the "sticker buddy" look.
+- Releases are signed and notarised: see `docs/releasing.md`. You do not need a certificate to build or send a change.

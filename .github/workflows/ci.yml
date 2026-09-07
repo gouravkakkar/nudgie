@@ -30,6 +30,9 @@ jobs:
           name: Nudgie.app
           path: build/Nudgie.app.zip
 
+  # Tag builds are rebuilt rather than reusing the artifact above: the release download has
+  # to be signed with the Developer ID certificate and notarised, and that has to happen in
+  # the same build whose signature Apple stamps.
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
@@ -37,10 +40,38 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: Nudgie.app
-          path: build
+      - uses: actions/checkout@v4
+      - name: Select the newest Xcode (Swift 6.2 needs Xcode 26+)
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | grep -vi beta | sort -V | tail -1)/Contents/Developer"
+
+      - name: Import the Developer ID certificate
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          # A throwaway keychain for this run only, unlocked so codesign can use the key
+          # without a UI prompt. Its password is random and never leaves the runner.
+          KEYCHAIN="$RUNNER_TEMP/nudgie.keychain-db"
+          PASSWORD="$(uuidgen)"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security find-identity -v -p codesigning | grep "Developer ID Application"
+
+      - name: Build, sign and notarise
+        env:
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+          NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+        run: |
+          ./tools/make-app.sh
+          ./tools/notarize.sh
+
       - name: Attach to the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
