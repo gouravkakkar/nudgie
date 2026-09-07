@@ -103,7 +103,7 @@
   .card.settled { transform: rotate(0deg); }
   .card .closex { position: absolute; top: 10px; right: 14px; border: 0; background: none; font: 800 14px var(--body); color: var(--muted); cursor: pointer; padding: 6px; }
   .ring { position: relative; width: 104px; height: 104px; }
-  .ring svg { width: 104px; height: 104px; transform: rotate(-90deg); }
+  .ring .dial { width: 104px; height: 104px; transform: rotate(-90deg); } /* the countdown dial only: the face must never inherit this */
   .ring .track { fill: none; stroke: var(--outline); opacity: 0.15; stroke-width: 9; }
   .ring .fill { fill: none; stroke: var(--accent, var(--mint)); stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 300ms; }
   .mascot { position: absolute; inset: 14px; }
@@ -229,7 +229,7 @@
       <div class="card sticker" id="card" style="--accent:#3DF5B4">
         <button class="closex" id="close" aria-label="Close without counting">✕</button>
         <div class="ring">
-          <svg viewBox="0 0 104 104" aria-hidden="true">
+          <svg class="dial" viewBox="0 0 104 104" aria-hidden="true">
             <circle class="track" cx="52" cy="52" r="46"/>
             <circle class="fill" id="ringfill" cx="52" cy="52" r="46" stroke-dasharray="289" stroke-dashoffset="0"/>
           </svg>

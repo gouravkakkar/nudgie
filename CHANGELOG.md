@@ -11,3 +11,4 @@
 ### Fixed
 
 - The quiet face now presses its lips into a straight line instead of making an "o" shape.
+- The website's mascot was lying on its side: it was picking up the countdown ring's -90° rotation. The rotation now applies to the ring alone.
