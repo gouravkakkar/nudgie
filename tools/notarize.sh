@@ -18,7 +18,10 @@ PROFILE="${NOTARY_KEYCHAIN_PROFILE:-nudgie}"
 [ -d "$APP" ] || { echo "$APP is missing. Run ./tools/make-app.sh first." >&2; exit 1; }
 
 # Apple rejects ad-hoc signatures, but only after a slow round trip. Catch it here instead.
-if ! codesign -dvv "$APP" 2>&1 | grep -q "^Authority=Developer ID Application"; then
+# Read the signature into a variable first: piping straight into `grep -q` makes grep exit on
+# the first match, codesign die of a broken pipe, and `set -o pipefail` call that a failure.
+signature="$(codesign -dvv "$APP" 2>&1 || true)"
+if ! grep -q "^Authority=Developer ID Application" <<<"$signature"; then
     echo "$APP is not signed with a Developer ID Application certificate, so Apple will" >&2
     echo "reject it. Create one at developer.apple.com -> Certificates, download and" >&2
     echo "double-click it, then run ./tools/make-app.sh again. See docs/releasing.md." >&2

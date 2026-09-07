@@ -10,7 +10,8 @@ OUT="build/$APP.app"
 # Two --arch flags make SwiftPM emit a fat binary under .build/apple/Products/Release (verified on this Mac).
 swift build -c release --arch arm64 --arch x86_64 2>&1 | tail -1
 BIN=".build/apple/Products/Release/$APP"
-lipo -info "$BIN" | grep -q "x86_64 arm64" || { echo "expected a universal binary, got: $(lipo -info "$BIN")" >&2; exit 1; }
+arches="$(lipo -info "$BIN")"
+grep -q "x86_64 arm64" <<<"$arches" || { echo "expected a universal binary, got: $arches" >&2; exit 1; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
