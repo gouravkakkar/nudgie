@@ -54,7 +54,7 @@ smile.lineWidth = 7; smile.lineCapStyle = .round; smile.stroke()
 let paragraph = NSMutableParagraphStyle(); paragraph.lineBreakMode = .byWordWrapping
 let titleFont = NSFont.systemFont(ofSize: 56, weight: .heavy)
 let rounded = NSFont(descriptor: titleFont.fontDescriptor.withDesign(.rounded) ?? titleFont.fontDescriptor, size: 56) ?? titleFont
-let title = NSAttributedString(string: "The break reminder that knows you're in a meeting.",
+let title = NSAttributedString(string: "Nine hours at a screen. Your eyes and back pay for it.",
                                attributes: [.font: rounded, .foregroundColor: ink, .paragraphStyle: paragraph])
 title.draw(in: NSRect(x: 500, y: 250, width: 590, height: 280))
 

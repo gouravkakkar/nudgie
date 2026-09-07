@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nudgie — free break reminder for Mac (20-20-20 eye breaks, posture, water, stretch)</title>
-<meta name="description" content="Nudgie is a free, quirky break reminder for macOS. 20-20-20 eye breaks, posture, water, walk and stretch nudges that stay quiet during meetings. Native Swift menu bar app, no account, nothing leaves your Mac. A free alternative to LookAway and Time Out.">
+<title>Nudgie — free eye strain and posture app for Mac (20-20-20 break reminders)</title>
+<meta name="description" content="Nudgie is a free macOS menu bar app that looks after your eyes, back and hydration through a long screen day. 20-20-20 eye breaks, posture, water, walk and stretch reminders, timed to the hours you are actually at the Mac and quiet during calls. Native Swift, no account, nothing leaves your Mac. A free alternative to LookAway and Time Out.">
 <link rel="canonical" href="https://gouravkakkar.github.io/nudgie/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Nudgie — the break reminder that knows you're in a meeting">
-<meta property="og:description" content="Free macOS menu bar app. Eyes, walk, water, posture and stretch nudges that count only real screen time and stay quiet when your camera or mic is on.">
+<meta property="og:title" content="Nudgie — free desk health reminders for Mac">
+<meta property="og:description" content="Eyes, back, shoulders, water, legs. Five small nudges timed to the hours you are actually at the Mac, and quiet when your camera or mic is on. Free and native.">
 <meta property="og:url" content="https://gouravkakkar.github.io/nudgie/">
 <meta property="og:image" content="https://gouravkakkar.github.io/nudgie/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Nudgie","operatingSystem":"macOS 14 or later","applicationCategory":"HealthApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"downloadUrl":"https://github.com/gouravkakkar/nudgie/releases/latest/download/Nudgie.app.zip","softwareVersion":"0.1.0","author":{"@type":"Person","name":"Gourav Kakkar"},"description":"Free break reminder for macOS: 20-20-20 eye breaks, posture, water, walk and stretch nudges that stay quiet during meetings."}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Nudgie","operatingSystem":"macOS 14 or later","applicationCategory":"HealthApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"downloadUrl":"https://github.com/gouravkakkar/nudgie/releases/latest/download/Nudgie.app.zip","softwareVersion":"0.1.0","author":{"@type":"Person","name":"Gourav Kakkar"},"description":"Free desk health app for macOS: 20-20-20 eye breaks, posture, water, walk and stretch reminders, timed to real screen time and quiet during meetings."}
 </script>
 <style>
   :root {
@@ -206,8 +206,8 @@
       Nudgie
     </a>
     <nav aria-label="Page">
-      <a href="#nudges">What it nudges</a>
-      <a href="#quiet">Meetings</a>
+      <a href="#nudges">What it looks after</a>
+      <a href="#quiet">Never interrupts</a>
       <a href="#install">Install</a>
       <a href="https://github.com/gouravkakkar/nudgie">GitHub</a>
     </nav>
@@ -216,8 +216,8 @@
   <section class="hero">
     <div>
       <span class="eyebrow">Free · macOS 14+ · Apple Silicon and Intel</span>
-      <h1>The break reminder that knows you're in a meeting.</h1>
-      <p class="lede">Nudgie sits in your menu bar and nudges you to rest your eyes, stand up, drink water, sit straight and stretch. It counts only the time you're actually at the Mac, and it goes quiet when your camera or mic is on.</p>
+      <h1>Nine hours at a screen. Your eyes and back pay for it.</h1>
+      <p class="lede">Nudgie is a tiny menu bar app that looks after the parts of you a desk job wears down &mdash; eyes, back, shoulders, water, legs. Five small nudges, timed to the hours you're actually at the Mac, so you finish the day with something left.</p>
       <div class="cta">
         <a class="btn" href="https://github.com/gouravkakkar/nudgie/releases/latest/download/Nudgie.app.zip">⬇ Download for Mac</a>
         <a class="btn ghost" href="https://github.com/gouravkakkar/nudgie">View the code</a>
@@ -260,20 +260,22 @@
   </section>
 
   <section id="nudges">
-    <h2>Five nudges. Turn off any of them.</h2>
+    <h2>Five things a desk day wears down.</h2>
+    <p class="fine">Turn any of them off, or change how often it asks. Nothing here is compulsory.</p>
     <div class="nudges">
-      <div class="nudge sticker" style="background:#3DF5B4;color:#1B1B1F"><div class="emoji">👀</div><h3>Eyes</h3><p style="color:rgba(27,27,31,.75)">The 20-20-20 rule: look at something 20 feet away for 20 seconds.</p><span class="every">every 20 min</span></div>
-      <div class="nudge sticker" style="background:#4DB8FF;color:#1B1B1F"><div class="emoji">💧</div><h3>Water</h3><p style="color:rgba(27,27,31,.75)">A glass, not a sip. Plants get watered. So should you.</p><span class="every">every 45 min</span></div>
-      <div class="nudge sticker" style="background:#FF8C42;color:#1B1B1F"><div class="emoji">🚶</div><h3>Walk</h3><p style="color:rgba(27,27,31,.75)">Three minutes on your feet. Your chair needs some alone time.</p><span class="every">every 60 min</span></div>
-      <div class="nudge sticker" style="background:#FF6FB5;color:#1B1B1F"><div class="emoji">🪑</div><h3>Posture</h3><p style="color:rgba(27,27,31,.75)">Shoulders back, screen at eye level. You're doing the shrimp again.</p><span class="every">every 30 min</span></div>
-      <div class="nudge sticker" style="background:#FFE24D;color:#1B1B1F"><div class="emoji">🙆</div><h3>Stretch</h3><p style="color:rgba(27,27,31,.75)">Neck, shoulders, wrists. One minute, and your 5 pm self says thanks.</p><span class="every">every 60 min</span></div>
+      <div class="nudge sticker" style="background:#3DF5B4;color:#1B1B1F"><div class="emoji">👀</div><h3>Eyes</h3><p style="color:rgba(27,27,31,.75)">The 20-20-20 rule, the one your optometrist keeps mentioning: every 20 minutes, look 20 feet away for 20 seconds. It is what stops the dry, gritty, end-of-day eyes.</p><span class="every">every 20 min</span></div>
+      <div class="nudge sticker" style="background:#4DB8FF;color:#1B1B1F"><div class="emoji">💧</div><h3>Water</h3><p style="color:rgba(27,27,31,.75)">A glass, not a sip. Being a little short on water turns up as a headache and a foggy afternoon long before it turns up as thirst.</p><span class="every">every 45 min</span></div>
+      <div class="nudge sticker" style="background:#FF8C42;color:#1B1B1F"><div class="emoji">🚶</div><h3>Walk</h3><p style="color:rgba(27,27,31,.75)">Three minutes on your feet. It is the hour of not moving that your back objects to, not the chair. Your chair needs some alone time anyway.</p><span class="every">every 60 min</span></div>
+      <div class="nudge sticker" style="background:#FF6FB5;color:#1B1B1F"><div class="emoji">🪑</div><h3>Posture</h3><p style="color:rgba(27,27,31,.75)">Shoulders back, screen at eye level. The neck that aches at 4pm started arguing at 10am, when you began doing the shrimp.</p><span class="every">every 30 min</span></div>
+      <div class="nudge sticker" style="background:#FFE24D;color:#1B1B1F"><div class="emoji">🙆</div><h3>Stretch</h3><p style="color:rgba(27,27,31,.75)">Neck, shoulders, wrists &mdash; the three that stiffen from holding one shape all day. One minute, and your 5pm self says thanks.</p><span class="every">every 60 min</span></div>
     </div>
   </section>
 
   <section id="quiet">
     <div class="two">
       <div class="panel sticker">
-        <h2>Quiet when it matters.</h2>
+        <h2>It never lands mid-sentence.</h2>
+        <p class="fine">A health reminder you mute on day two is worth nothing. So Nudgie waits.</p>
         <ul class="rules">
           <li><span class="ic" style="background:#FF6FB5">📷</span><div><b>Camera or mic in use</b><span>Any app, any call. Nudgie only reads an "is this device busy" flag, so there is no permission prompt and no recording.</span></div></li>
           <li><span class="ic" style="background:#4DB8FF">🖥</span><div><b>A browser or meeting app in front</b><span>Safari, Chrome, Arc, Firefox, Zoom, Teams, Slack, FaceTime, Webex, Discord. Edit the list.</span></div></li>
@@ -291,7 +293,7 @@
 
   <section>
     <div class="facts">
-      <div class="fact sticker"><h3>Private by design</h3><p>No account, no analytics, no network calls. Your settings live in your Mac's user defaults and nowhere else.</p></div>
+      <div class="fact sticker"><h3>No health data, anywhere</h3><p>No account, no analytics, no network calls. Nudgie keeps two numbers &mdash; breaks taken and snoozed, today and yesterday &mdash; in your Mac's user defaults, and throws the rest away.</p></div>
       <div class="fact sticker"><h3>Native, not a web page in a box</h3><p>Written in Swift for macOS. No Electron, no background helpers, no permission prompts. Roughly a hundredth the size.</p></div>
       <div class="fact sticker"><h3>Free and source-available</h3><p>Use it at home or at work, read the code, change it, share it. Only the author may sell it (PolyForm Shield 1.0.0).</p></div>
     </div>
@@ -312,7 +314,7 @@
   </section>
 
   <section>
-    <p class="compare">Looking for a free alternative to LookAway (from $19) or Time Out's paid unlocks, or a native, lighter alternative to Stretchly? That's Nudgie. Free break reminder for Mac, 20-20-20 rule app, posture reminder, water reminder, stand-up reminder, all in one menu bar app.</p>
+    <p class="compare">Screen time is the job now, and eye strain, a stiff neck and a forgotten water bottle come with it. Nudgie is a free desk health app for Mac that handles the lot from one menu bar icon: 20-20-20 eye strain reminders, posture reminders, hydration reminders, stand-up and stretch breaks. A free alternative to LookAway (from $19) and Time Out's paid unlocks, and a native, lighter alternative to Stretchly.</p>
   </section>
 
   <footer>
