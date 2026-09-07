@@ -11,7 +11,7 @@ Click it to see:
 - **Pause:** for 1 hour or until tomorrow. Pausing resets the timers, so nothing fires the moment you resume.
 - **Settings…** and **Quit**.
 
-The face blinks now and then, shows a finger on its lips while quiet, and closes its eyes with a "z" while paused or off the clock.
+The face blinks now and then, presses its lips into a straight line while quiet, and closes its eyes with a "z" while paused or off the clock.
 
 ## The card
 

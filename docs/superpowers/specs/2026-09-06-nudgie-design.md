@@ -226,7 +226,7 @@ them. The countdown is the longest break in the group.
   shapes (no image assets). One pose per reminder: eyes rolling far away
   (Eyes), holding a glass with bubbles (Water), tiny legs mid-bounce (Walk),
   slouched-then-straightening (Posture), stretched tall like taffy (Stretch),
-  and a "shh" finger-on-lips face for quiet mode.
+  and a lips-sealed face for quiet mode.
 - **Card style:** flat vivid fill, 3 pt ink outline, 24 pt corners, a hard
   offset shadow like a paper sticker, enters with a small spring wobble and a
   −2° tilt that settles to level.
@@ -392,3 +392,7 @@ Focus rule).
 - **Focus / Do Not Disturb detection** is out (section 8) and the App Nap
   guard (`NSAppSleepDisabled`, a process activity) is in, so the heartbeat
   keeps its one-second cadence.
+- **The quiet face is lips-only in the menu bar.** The spec asked for a
+  finger on the lips. At 18 pt the finger reads as a smudge running out of
+  the head, so the menu bar icon shows open eyes and a straight-line mouth,
+  and only the large in-card `.shh` pose keeps the finger.

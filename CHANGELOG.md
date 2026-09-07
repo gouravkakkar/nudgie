@@ -7,3 +7,7 @@
 - Meeting-aware quiet mode: camera or mic in use, browser or meeting app in front.
 - Sticker-style floating card with mascot, countdown ring, confetti and sound.
 - Menu bar face icon, settings window, launch at login.
+
+### Fixed
+
+- The quiet face now presses its lips into a straight line instead of making an "o" shape.

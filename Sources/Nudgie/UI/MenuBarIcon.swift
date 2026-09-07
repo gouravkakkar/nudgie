@@ -43,13 +43,14 @@ enum MenuBarIcon {
 
             switch state {
             case .shh:
-                NSBezierPath(ovalIn: NSRect(x: rect.midX - 1, y: rect.midY - 4.5, width: 2, height: 2)).fill()
-                let finger = NSBezierPath()
-                finger.move(to: NSPoint(x: rect.midX + 0.5, y: rect.midY - 6.5))
-                finger.line(to: NSPoint(x: rect.midX + 2.5, y: rect.midY - 1))
-                finger.lineWidth = 1.6
-                finger.lineCapStyle = .round
-                finger.stroke()
+                // Lips pressed shut. At 18 pt a finger-over-the-lips just reads as a smudge
+                // running out of the head, so the flat mouth carries the whole "quiet" idea.
+                let lips = NSBezierPath()
+                lips.move(to: NSPoint(x: rect.midX - 3, y: rect.midY - 3.5))
+                lips.line(to: NSPoint(x: rect.midX + 3, y: rect.midY - 3.5))
+                lips.lineWidth = 1.5
+                lips.lineCapStyle = .round
+                lips.stroke()
             case .zzz:
                 let z = NSAttributedString(string: "z", attributes: [
                     .font: NSFont.systemFont(ofSize: 7, weight: .black),

@@ -15,7 +15,7 @@ Run through this before tagging a release. Tick each line.
 - [ ] Leave the Mac idle 6+ minutes, then run --demo water: the card still appears (forced).
 
 ## Meetings
-- [ ] Open Photo Booth: status "Quiet: Camera is on", icon shows the shh face; a *scheduled* card waits; `--demo eyes` still shows (forced) but plays no sound.
+- [ ] Open Photo Booth: status "Quiet: Camera is on", icon shows the quiet face (straight-line mouth); a *scheduled* card waits; `--demo eyes` still shows (forced) but plays no sound.
 - [ ] Quit Photo Booth: status back to Counting within 2 s; a pending card appears after about 30 s.
 - [ ] Click into Safari: status "Quiet: Meeting app in front". Click into Terminal: Counting.
 - [ ] Settings → toggle the camera rule off → Photo Booth no longer makes it quiet.
@@ -33,5 +33,5 @@ Run through this before tagging a release. Tick each line.
 - [ ] Reset everything to defaults restores all tabs.
 - [ ] `make app` → `codesign -dv` says adhoc; app has the face icon; no Dock icon.
 - [ ] Launch at login from the built app: appears in System Settings → Login Items.
-- [ ] Menu bar face blinks about every 30 s; shows the finger-on-lips face while Photo Booth is open; shows closed eyes with a z while paused.
+- [ ] Menu bar face blinks about every 30 s; shows open eyes and a straight-line mouth while Photo Booth is open; shows closed eyes with a z while paused.
 - [ ] Settings window: every tab renders, toggles and steppers change the menu's next-up rows, work-hours "To" follows "From" past it, changes survive a relaunch.

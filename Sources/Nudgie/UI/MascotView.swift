@@ -114,7 +114,7 @@ struct MascotView: View {
         switch pose {
         case .shh:
             ZStack {
-                Circle().fill(Theme.ink).frame(width: size * 0.09, height: size * 0.09)
+                Capsule().fill(Theme.ink).frame(width: size * 0.18, height: 2.5)  // lips pressed shut
                 Capsule().fill(Theme.ink)
                     .frame(width: size * 0.05, height: size * 0.24)
                     .rotationEffect(.degrees(12))
