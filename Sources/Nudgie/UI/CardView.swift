@@ -4,7 +4,8 @@ import NudgieCore
 /// The floating reminder card: ring + mascot on the left, copy and buttons on the right.
 struct CardView: View {
     static let width: CGFloat = 360
-    static let height: CGFloat = 170
+    /// Tall enough for headline + instruction + the benefit line under it.
+    static let height: CGFloat = 195
     /// Extra room around the card for the sticker shadow and the entry tilt.
     static let margin: CGFloat = 12
 
@@ -51,6 +52,14 @@ struct CardView: View {
                     .font(Theme.body())
                     .foregroundStyle(text.opacity(0.8))
                     .lineLimit(2)
+                // Single-reminder cards only: see CardPresentation.benefit.
+                if card.plan.kinds.count == 1, let benefit = card.benefit {
+                    Text(benefit)
+                        .font(Theme.body(12))
+                        .foregroundStyle(text.opacity(0.55))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
                 HStack(spacing: 8) {
                     Button { celebrate(card) } label: {
                         Text("Did it!").font(Theme.headline(13)).lineLimit(1).minimumScaleFactor(0.85)

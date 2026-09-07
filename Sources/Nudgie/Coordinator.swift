@@ -27,6 +27,9 @@ struct CardPresentation: Equatable {
     let id: UUID
     let plan: CardPlan
     let headline: String
+    /// Shown only on single-reminder cards: on a merged card it would name a benefit for one of
+    /// the several things being asked for. nil when the accent kind has no benefit copy.
+    let benefit: String?
     let startedAt: Date
     /// "Take a break now" cards are not hidden by a meeting: the user asked for them.
     let isForced: Bool
@@ -159,8 +162,9 @@ final class Coordinator {
 
     private func show(_ plan: CardPlan, forced: Bool = false) {
         let headline = copy.line(for: plan.kinds[0])
-        card = CardPresentation(id: UUID(), plan: plan, headline: headline, startedAt: now, isForced: forced,
-                                secondsLeft: plan.countdownSeconds)
+        let benefit = copy.benefit(for: plan.kinds[0])
+        card = CardPresentation(id: UUID(), plan: plan, headline: headline, benefit: benefit,
+                                startedAt: now, isForced: forced, secondsLeft: plan.countdownSeconds)
         if settings.soundEnabled, !planner.isQuiet {
             playSound(settings.soundName)
         }
@@ -254,7 +258,10 @@ final class Coordinator {
             // longer break, and the elapsed time already spent must count against the new, shorter one.
             let elapsed = Int(now.timeIntervalSince(current.startedAt).rounded(.down))
             let secondsLeft = max(0, plan.countdownSeconds - elapsed)
-            card = CardPresentation(id: current.id, plan: plan, headline: current.headline,
+            // Dropping a kind can promote a different one to accent, which would leave the old
+            // benefit describing a reminder no longer on the card. Re-pick when that happens.
+            let benefit = plan.kinds[0] == current.accentKind ? current.benefit : copy.benefit(for: plan.kinds[0])
+            card = CardPresentation(id: current.id, plan: plan, headline: current.headline, benefit: benefit,
                                     startedAt: current.startedAt, isForced: current.isForced,
                                     secondsLeft: secondsLeft)
             if secondsLeft == 0 { didIt() }   // the shorter countdown already ran out

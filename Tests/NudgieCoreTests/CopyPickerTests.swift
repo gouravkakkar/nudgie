@@ -46,4 +46,47 @@ struct SplitMix64: RandomNumberGenerator {
             for line in lines { #expect(line.count > 10) }
         }
     }
+
+    @Test func everyKindHasThreeBenefits() {
+        for kind in ReminderKind.allCases {
+            #expect((CopyPicker.benefits[kind]?.count ?? 0) >= 3, "\(kind) needs 3+ benefit lines")
+        }
+    }
+
+    @Test func benefitNeverRepeatsThePreviousLine() {
+        var picker = CopyPicker()
+        var rng = SplitMix64(state: 99)
+        for kind in ReminderKind.allCases {
+            var previous = picker.benefit(for: kind, using: &rng)
+            for _ in 0..<200 {
+                let next = picker.benefit(for: kind, using: &rng)
+                #expect(next != previous)
+                previous = next
+            }
+        }
+    }
+
+    @Test func eventuallyUsesEveryBenefit() {
+        var picker = CopyPicker()
+        var rng = SplitMix64(state: 11)
+        var seen = Set<String>()
+        for _ in 0..<300 { seen.insert(picker.benefit(for: .water, using: &rng)!) }
+        #expect(seen == Set(CopyPicker.benefits[.water]!))
+    }
+
+    /// A card can appear at 9am or 10pm, so a benefit line must not claim to know which.
+    /// "Keeps your energy steady through the afternoon" was wrong on a card shown at 8pm.
+    @Test func benefitsNeverAssumeATimeOfDay() {
+        let clockWords = ["morning", "afternoon", "evening", "tonight", "midday",
+                          "noon", "o'clock", " am ", " pm", "end of the day",
+                          "start of the day", "rest of the day"]
+        for (kind, lines) in CopyPicker.benefits {
+            for line in lines {
+                let lowered = line.lowercased()
+                for word in clockWords {
+                    #expect(!lowered.contains(word), "\(kind) benefit assumes a time of day: \(line)")
+                }
+            }
+        }
+    }
 }

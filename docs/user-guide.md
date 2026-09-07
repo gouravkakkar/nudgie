@@ -17,6 +17,12 @@ The face blinks now and then, presses its lips into a straight line while quiet,
 
 Appears in the top-right corner of the screen with the menu bar, over any app, without taking your keyboard focus.
 
+Each card reads in three lines: a light-hearted headline to catch your eye, the plain instruction telling you what to do, and a quieter line underneath saying what you get out of it — "Eases the strain of staring at one distance." Headline and benefit are both drawn from a rotating set, so the same card does not read identically every time.
+
+The benefit line appears on single-reminder cards only. A merged card is already asking for two or three things at once, and a benefit that covered only one of them would be misleading, so it is left off.
+
+None of the copy refers to a time of day, because a card can appear at nine in the morning or ten at night.
+
 - **Did it!** counts the break as taken and restarts the timer. Confetti included.
 - **N more min** snoozes (5 minutes by default).
 - **✕** closes without counting; the timer restarts.

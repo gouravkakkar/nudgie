@@ -33,23 +33,72 @@ public struct CopyPicker: Equatable, Sendable {
         ],
     ]
 
+    /// The quiet line under the instruction: what you get out of doing it. Deliberately free of
+    /// any reference to the time of day, because a card can appear at 9am or 10pm.
+    public static let benefits: [ReminderKind: [String]] = [
+        .eyes: [
+            "Eases the strain of staring at one distance.",
+            "Relaxes the focusing muscle you've been holding.",
+            "Stops that dry, gritty feeling building up.",
+        ],
+        .water: [
+            "Steadies your energy and your focus.",
+            "Clears the fog before it settles in.",
+            "Keeps the dull headache from creeping in.",
+        ],
+        .walk: [
+            "Breaks up the sitting that stiffens you up.",
+            "Gets the blood moving in your legs again.",
+            "A change of position is what your back wants.",
+        ],
+        .posture: [
+            "Saves your neck and lower back from aching later.",
+            "Takes the weight of your head off your neck.",
+            "Stops your shoulders creeping up to your ears.",
+        ],
+        .stretch: [
+            "Loosens your shoulders before they get tight.",
+            "Keeps your wrists from grumbling.",
+            "Undoes the hunch you've settled into.",
+        ],
+    ]
+
     private var lastIndex: [ReminderKind: Int] = [:]
+    private var lastBenefitIndex: [ReminderKind: Int] = [:]
 
     public init() {}
 
     public mutating func line(for kind: ReminderKind, using generator: inout some RandomNumberGenerator) -> String {
-        let options = Self.lines[kind] ?? [kind.instruction]
-        guard options.count > 1 else { return options[0] }
-        var index = Int.random(in: 0..<options.count, using: &generator)
-        if index == lastIndex[kind] {
-            index = (index + 1) % options.count
-        }
-        lastIndex[kind] = index
-        return options[index]
+        pick(from: Self.lines[kind] ?? [kind.instruction], for: kind, remembering: &lastIndex, using: &generator)
     }
 
     public mutating func line(for kind: ReminderKind) -> String {
         var generator = SystemRandomNumberGenerator()
         return line(for: kind, using: &generator)
+    }
+
+    /// Rotated separately from the headline so the pairing varies rather than repeating in lockstep.
+    public mutating func benefit(for kind: ReminderKind, using generator: inout some RandomNumberGenerator) -> String? {
+        guard let options = Self.benefits[kind], !options.isEmpty else { return nil }
+        return pick(from: options, for: kind, remembering: &lastBenefitIndex, using: &generator)
+    }
+
+    public mutating func benefit(for kind: ReminderKind) -> String? {
+        var generator = SystemRandomNumberGenerator()
+        return benefit(for: kind, using: &generator)
+    }
+
+    /// Never the same entry twice in a row for a given kind.
+    private func pick(from options: [String],
+                      for kind: ReminderKind,
+                      remembering last: inout [ReminderKind: Int],
+                      using generator: inout some RandomNumberGenerator) -> String {
+        guard options.count > 1 else { return options[0] }
+        var index = Int.random(in: 0..<options.count, using: &generator)
+        if index == last[kind] {
+            index = (index + 1) % options.count
+        }
+        last[kind] = index
+        return options[index]
     }
 }
