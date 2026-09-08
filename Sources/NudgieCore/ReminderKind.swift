@@ -1,6 +1,6 @@
 /// Library-wide constants.
 public enum NudgieCore {
-    public static let version = "0.1.0"
+    public static let version = "0.1.1"
 }
 
 /// The five things Nudgie nudges you about. Order here is display order.

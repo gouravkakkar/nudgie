@@ -31,7 +31,11 @@ import Testing
         #expect(ReminderKind(rawValue: "posture") == .posture)
     }
 
+    /// Checks the shape, not a literal: pinning the number here meant every release began with
+    /// a failing test, which teaches you to edit the test rather than to read it.
     @Test func versionIsSet() {
-        #expect(NudgieCore.version == "0.1.0")
+        let version = NudgieCore.version
+        #expect(version.wholeMatch(of: /\d+\.\d+\.\d+/) != nil, "expected a semver, got \(version)")
+        #expect(version != "0.0.0")
     }
 }
