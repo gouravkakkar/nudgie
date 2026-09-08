@@ -33,17 +33,11 @@ Every reminder can be switched off or retimed.
 
 Works on macOS 14 Sonoma or newer, Apple Silicon and Intel (the download is a universal build).
 
-Nudgie is not yet notarised (that needs a paid Apple Developer account), so macOS blocks a downloaded copy the first time. This is a one-time step:
+Releases are signed with a Developer ID certificate and notarised by Apple, so a downloaded copy opens normally — no "cannot verify" dialog and nothing to allow in System Settings.
 
-1. Download `Nudgie.app.zip` from the latest [release](../../releases), unzip it, and move `Nudgie.app` to `/Applications`.
-2. **macOS 15 Sequoia or newer:** double-click it, click **Done** on the "cannot verify" dialog, then open **System Settings → Privacy & Security**, scroll down, click **Open Anyway** next to the Nudgie message, then **Open**.
-3. **macOS 14 Sonoma:** right-click `Nudgie.app` → **Open** → **Open**.
-
-If you prefer the terminal:
-
-```bash
-xattr -d com.apple.quarantine /Applications/Nudgie.app
-```
+1. Download `Nudgie.app.zip` from the latest [release](../../releases) and unzip it.
+2. Drag `Nudgie.app` to `/Applications` and double-click it.
+3. Nudgie appears in the menu bar. There is no window and no sign-up.
 
 Or build it yourself (Xcode 26 or newer):
 

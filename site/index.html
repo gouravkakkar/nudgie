@@ -303,12 +303,11 @@
     <div class="panel sticker install">
       <h2>Install in a minute.</h2>
       <ol>
-        <li><a href="https://github.com/gouravkakkar/nudgie/releases/latest/download/Nudgie.app.zip">Download Nudgie.app.zip</a>, unzip it, and move <code>Nudgie.app</code> to Applications.</li>
-        <li><b>macOS 15 or newer:</b> open it, click <b>Done</b> on the "cannot verify" dialog, then go to <b>System Settings → Privacy &amp; Security</b>, scroll down, click <b>Open Anyway</b>, then <b>Open</b>.</li>
-        <li><b>macOS 14:</b> right-click <code>Nudgie.app</code> → <b>Open</b> → <b>Open</b>.</li>
+        <li><a href="https://github.com/gouravkakkar/nudgie/releases/latest/download/Nudgie.app.zip">Download Nudgie.app.zip</a> and unzip it.</li>
+        <li>Drag <code>Nudgie.app</code> to Applications and double-click it.</li>
+        <li>Nudgie appears in the menu bar. That's it — there's no window and no sign-up.</li>
       </ol>
-      <p class="fine">Why the extra step? Nudgie isn't notarised yet (that needs a paid Apple developer account). You only do this once. If you prefer the terminal:</p>
-      <pre><code>xattr -d com.apple.quarantine /Applications/Nudgie.app</code></pre>
+      <p class="fine">Signed with a Developer ID certificate and notarised by Apple, so macOS opens it without the "cannot verify" warning. Nothing to allow in System Settings.</p>
       <p class="fine">Or build it yourself with Xcode 26: <code>git clone https://github.com/gouravkakkar/nudgie.git &amp;&amp; cd nudgie &amp;&amp; make install</code></p>
     </div>
   </section>
